@@ -1,0 +1,148 @@
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  Modal, View, Text, StyleSheet, TouchableOpacity,
+  FlatList, ActivityIndicator, Alert, StatusBar,
+} from 'react-native';
+import { useTheme } from '../services/theme';
+import { getRecurring, deleteRecurring } from '../services/recurring';
+import { getCategoryByKey, CategoryIcon } from '../services/categories';
+import { LABELS } from '../constants/i18n';
+import { formatMoney } from '../services/format';
+
+
+export default function RecurringModal({ visible, onClose, userId }) {
+  const { theme, lang } = useTheme();
+  const L = LABELS[lang];
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const data = await getRecurring(userId);
+      setItems(data);
+    } catch (e) {
+      console.error('RecurringModal load error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  React.useEffect(() => { if (visible) load(); }, [visible]);
+
+  function confirmDelete(item) {
+    Alert.alert(
+      'Eliminar recurrente',
+      `¿Eliminás "${item.description}"? No se borrarán los movimientos ya creados.`,
+      [
+        { text: L.cancel, style: 'cancel' },
+        {
+          text: 'Eliminar', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteRecurring(item.id);
+              setItems(prev => prev.filter(i => i.id !== item.id));
+            } catch {
+              Alert.alert('Error', 'No se pudo eliminar');
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  const s = useMemo(() => createStyles(theme), [theme]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[s.container, { backgroundColor: theme.card }]}>
+        <View style={s.handle} />
+        <View style={s.header}>
+          <Text style={s.title}>🔄 Gastos recurrentes</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={[s.closeBtn, { color: theme.subtext }]}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[s.subtitle, { color: theme.subtext }]}>
+          Se crean automáticamente al abrir la app cada mes.
+        </Text>
+
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 40 }} size="large" color={theme.accent} />
+        ) : items.length === 0 ? (
+          <View style={s.empty}>
+            <Text style={{ fontSize: 48 }}>🔄</Text>
+            <Text style={[s.emptyText, { color: theme.subtext }]}>
+              Sin recurrentes aún.{'\n'}Activá el toggle al guardar un movimiento.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ padding: 16, gap: 10 }}
+            renderItem={({ item }) => {
+              const cat = getCategoryByKey(item.category, lang);
+              const isIncome = item.type === 'income';
+              return (
+                <View style={[s.card, { backgroundColor: theme.bg, borderColor: theme.cardBorder, borderWidth: theme.dark ? 1 : 0 }]}>
+                  <View style={[s.iconWrap, { backgroundColor: cat.color + '20' }]}>
+                    <CategoryIcon catKey={item.category} size={18} color={cat.color} />
+                  </View>
+                  <View style={s.info}>
+                    <Text style={[s.desc, { color: theme.text }]} numberOfLines={1}>{item.description}</Text>
+                    <Text style={[s.meta, { color: theme.subtext }]}>
+                      {cat.name} · Día {item.day_of_month} de cada mes
+                    </Text>
+                  </View>
+                  <Text style={[s.amount, { color: isIncome ? theme.income : theme.expense }]}>
+                    {isIncome ? '+' : '-'}{formatMoney(item.amount)}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => confirmDelete(item)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={s.deleteBtn}
+                  >
+                    <Text style={{ fontSize: 16, color: theme.subtext }}>🗑</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+function createStyles(t) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 12 },
+    handle: {
+      alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
+      backgroundColor: t.divider, marginBottom: 20,
+    },
+    header: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 20, marginBottom: 4,
+    },
+    title: { fontSize: 18, fontWeight: '800', color: t.text },
+    closeBtn: { fontSize: 18 },
+    subtitle: { fontSize: 13, paddingHorizontal: 20, marginBottom: 4 },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
+    emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    card: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      borderRadius: 14, padding: 14,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    },
+    iconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    info: { flex: 1, minWidth: 0 },
+    desc: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+    meta: { fontSize: 11, fontWeight: '500' },
+    amount: { fontSize: 14, fontWeight: '700', flexShrink: 0 },
+    deleteBtn: { padding: 4, flexShrink: 0 },
+  });
+}

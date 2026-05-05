@@ -31,7 +31,18 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
 .env*.local
+
+# Sensitive
+backend/.env
+google-services.json
+.claude/
+
+# Python
+__pycache__/
+*.pyc
 
 # typescript
 *.tsbuildinfo
