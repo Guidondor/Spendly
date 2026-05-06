@@ -50,4 +50,14 @@ __pycache__/
 # generated native folders
 /ios
 /android
+# internal dev files
 context.md
+CLAUDE.md
+pulido_funcionalidad.md
+Spendly.code-workspace
+
+# design/media assets internos
+Fotos modelo/
+Version Handoff/
+*.jpeg
+*.jpg
