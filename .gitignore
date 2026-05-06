@@ -50,3 +50,4 @@ __pycache__/
 # generated native folders
 /ios
 /android
+context.md
