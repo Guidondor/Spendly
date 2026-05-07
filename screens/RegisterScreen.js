@@ -49,11 +49,17 @@ export default function RegisterScreen({ navigation }) {
       });
       if (oauthError || !data.url) { setError(oauthError?.message ?? 'Error con Google'); return; }
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-      if (result.type === 'success' && result.url) {
-        await supabase.auth.exchangeCodeForSession(result.url);
+      if (result.type !== 'success' || !result.url) {
+        if (result.type !== 'cancel' && result.type !== 'dismiss') setError('Google: ' + result.type);
+        return;
       }
-    } catch {
-      setError('Error inesperado con Google');
+      const codeMatch = /[?&]code=([^&]+)/.exec(result.url);
+      const code = codeMatch ? decodeURIComponent(codeMatch[1]) : null;
+      if (!code) { setError('No se recibió code de Google'); return; }
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) setError('Exchange: ' + exchangeError.message);
+    } catch (err) {
+      setError('Google: ' + (err?.message ?? 'desconocido'));
     } finally {
       setLoading(false);
     }
