@@ -21,7 +21,9 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+_api_key = os.getenv("ANTHROPIC_API_KEY")
+print(f"ANTHROPIC_API_KEY present: {bool(_api_key)} (len={len(_api_key) if _api_key else 0})", flush=True)
+client = anthropic.Anthropic(api_key=_api_key)
 
 VALID_CATEGORIES = [
     "food", "transport", "health", "housing",
