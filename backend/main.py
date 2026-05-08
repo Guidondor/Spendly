@@ -1,4 +1,5 @@
 import os
+import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -63,7 +64,9 @@ Respondé SOLO con la clave, sin puntos ni explicaciones."""
         if category not in VALID_CATEGORIES:
             category = "income" if req.type == "income" else "other"
         return {"category": category}
-    except Exception:
+    except Exception as e:
+        print(f"[/categorize] {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error interno al categorizar")
 
 
@@ -90,7 +93,9 @@ async def insight(req: InsightRequest):
             messages=[{"role": "user", "content": prompt}],
         )
         return {"insight": message.content[0].text.strip()}
-    except Exception:
+    except Exception as e:
+        print(f"[/insight] {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error interno al generar consejo")
 
 
