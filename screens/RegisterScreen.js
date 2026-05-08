@@ -64,11 +64,26 @@ export default function RegisterScreen({ navigation }) {
         return;
       }
       const codeMatch = /[?&]code=([^&]+)/.exec(url);
-      const code = codeMatch ? decodeURIComponent(codeMatch[1]) : null;
-      if (!code) { setError('Sin code en URL: ' + url.slice(0, 80)); return; }
-      const { data: exData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) { setError('Exchange: ' + exchangeError.message); return; }
-      if (!exData?.session) setError('Exchange ok pero sin sesión');
+      if (codeMatch) {
+        const code = decodeURIComponent(codeMatch[1]);
+        const { data: exData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) { setError('Exchange: ' + exchangeError.message); return; }
+        if (!exData?.session) setError('Exchange ok pero sin sesión');
+        return;
+      }
+      const hashIdx = url.indexOf('#');
+      if (hashIdx !== -1) {
+        const params = new URLSearchParams(url.slice(hashIdx + 1));
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+        if (access_token && refresh_token) {
+          const { data: sData, error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (setErr) { setError('SetSession: ' + setErr.message); return; }
+          if (!sData?.session) setError('SetSession sin sesión');
+          return;
+        }
+      }
+      setError('Sin code/token en URL: ' + url.slice(0, 80));
     } catch (err) {
       setError('Google: ' + (err?.message ?? 'desconocido'));
     } finally {
