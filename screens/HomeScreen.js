@@ -17,7 +17,7 @@ import { applyRecurring, deleteRecurring } from '../services/recurring';
 import { formatMoney } from '../services/format';
 
 
-function formatSectionDate(dateStr) {
+function formatSectionDate(dateStr, L, lang) {
   const [year, month, day] = dateStr.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   const today = new Date();
@@ -30,7 +30,7 @@ function formatSectionDate(dateStr) {
   return `${d} ${m}`;
 }
 
-function groupByDate(transactions) {
+function groupByDate(transactions, L, lang) {
   const groups = {};
   transactions.forEach(t => {
     if (!groups[t.date]) groups[t.date] = [];
@@ -38,12 +38,12 @@ function groupByDate(transactions) {
   });
   return Object.entries(groups)
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, data]) => ({ date, label: formatSectionDate(date), data }));
+    .map(([date, data]) => ({ date, label: formatSectionDate(date, L, lang), data }));
 }
 
 // ─── Transaction item ─────────────────────────────────────────────────────────
 
-function TransactionItem({ transaction, onDelete, onEdit, theme }) {
+function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang }) {
   const cat = getCategoryByKey(transaction.category, lang);
   const isIncome = transaction.type === 'income';
 
@@ -123,7 +123,7 @@ const txStyle = StyleSheet.create({
 
 // ─── AI Insights card ─────────────────────────────────────────────────────────
 
-function AIInsightCard({ theme, userId, transactions }) {
+function AIInsightCard({ theme, userId, transactions, L, lang }) {
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -272,7 +272,7 @@ export default function HomeScreen({ session }) {
   const income   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const balance  = income - expenses;
-  const sections = useMemo(() => groupByDate(transactions), [transactions]);
+  const sections = useMemo(() => groupByDate(transactions, L, lang), [transactions, L, lang]);
   const s = useMemo(() => createStyles(theme), [theme]);
 
   const ListHeader = (
@@ -307,7 +307,7 @@ export default function HomeScreen({ session }) {
         </View>
       </View>
 
-      <AIInsightCard theme={theme} userId={userId} transactions={transactions} />
+      <AIInsightCard theme={theme} userId={userId} transactions={transactions} L={L} lang={lang} />
     </>
   );
 
@@ -371,6 +371,8 @@ export default function HomeScreen({ session }) {
                   key={tx.id}
                   transaction={tx}
                   theme={theme}
+                  L={L}
+                  lang={lang}
                   onDelete={() => handleDelete(tx)}
                   onEdit={() => { setEditingTx(tx); setModalVisible(true); }}
                 />

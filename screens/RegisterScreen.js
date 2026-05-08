@@ -50,14 +50,17 @@ export default function RegisterScreen({ navigation }) {
       if (oauthError || !data.url) { setError(oauthError?.message ?? 'Error con Google'); return; }
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
       if (result.type !== 'success' || !result.url) {
-        if (result.type !== 'cancel' && result.type !== 'dismiss') setError('Google: ' + result.type);
+        const { data: sd } = await supabase.auth.getSession();
+        if (sd?.session) return;
+        setError('Google result=' + result.type + ' (no url)');
         return;
       }
       const codeMatch = /[?&]code=([^&]+)/.exec(result.url);
       const code = codeMatch ? decodeURIComponent(codeMatch[1]) : null;
-      if (!code) { setError('No se recibió code de Google'); return; }
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) setError('Exchange: ' + exchangeError.message);
+      if (!code) { setError('Sin code en URL: ' + result.url.slice(0, 80)); return; }
+      const { data: exData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) { setError('Exchange: ' + exchangeError.message); return; }
+      if (!exData?.session) setError('Exchange ok pero sin sesión');
     } catch (err) {
       setError('Google: ' + (err?.message ?? 'desconocido'));
     } finally {

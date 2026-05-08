@@ -187,14 +187,14 @@ export default function ChartsScreen({ route }) {
           </View>
 
           {/* Monthly trend */}
-          <MonthlyBars userId={userId} theme={theme} currentDate={viewDate} />
+          <MonthlyBars userId={userId} theme={theme} currentDate={viewDate} lang={lang} />
         </ScrollView>
       )}
     </View>
   );
 }
 
-function MonthlyBars({ userId, theme, currentDate }) {
+function MonthlyBars({ userId, theme, currentDate, lang }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 

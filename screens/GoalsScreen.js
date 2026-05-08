@@ -14,7 +14,7 @@ import { formatMoney } from '../services/format';
 const GOAL_ICONS = ['🎯', '🏠', '✈️', '🚗', '💻', '📱', '🎓', '💍', '🏖️', '💰'];
 const GOAL_COLORS = ['#16a34a', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#e11d48'];
 
-function GoalCard({ goal, theme, onUpdate, onDelete }) {
+function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
   const pct = Math.min((goal.saved / goal.target) * 100, 100);
   const isComplete = goal.saved >= goal.target;
   const [updateModal, setUpdateModal] = useState(false);
@@ -231,6 +231,7 @@ export default function GoalsScreen({ route }) {
                 key={goal.id}
                 goal={goal}
                 theme={theme}
+                L={L}
                 onUpdate={updated => setGoals(g => g.map(gl => gl.id === updated.id ? updated : gl))}
                 onDelete={handleDelete}
               />
