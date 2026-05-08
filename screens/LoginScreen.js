@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar, Linking,
 } from 'react-native';
 import Svg, { Path, G, Rect } from 'react-native-svg';
 import { supabase } from '../services/supabase';
@@ -44,31 +44,40 @@ export default function LoginScreen({ navigation }) {
   async function handleGoogleLogin() {
     setError('');
     setLoading(true);
+    let linkSub = null;
+    let urlFromLink = null;
     try {
       const WebBrowser = require('expo-web-browser');
       const { makeRedirectUri } = require('expo-auth-session');
       const redirectUri = makeRedirectUri({ scheme: 'spendly' });
+      linkSub = Linking.addEventListener('url', ({ url }) => { urlFromLink = url; });
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: redirectUri, skipBrowserRedirect: true },
       });
       if (oauthError || !data.url) { setError(oauthError?.message ?? 'Error con Google'); return; }
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-      if (result.type !== 'success' || !result.url) {
+      let url = result.url;
+      if (!url) {
+        for (let i = 0; i < 30 && !urlFromLink; i++) await new Promise(r => setTimeout(r, 100));
+        url = urlFromLink;
+      }
+      if (!url) {
         const { data: sd } = await supabase.auth.getSession();
         if (sd?.session) return;
-        setError('Google result=' + result.type + ' (no url)');
+        setError('Google result=' + result.type + ' (sin url)');
         return;
       }
-      const codeMatch = /[?&]code=([^&]+)/.exec(result.url);
+      const codeMatch = /[?&]code=([^&]+)/.exec(url);
       const code = codeMatch ? decodeURIComponent(codeMatch[1]) : null;
-      if (!code) { setError('Sin code en URL: ' + result.url.slice(0, 80)); return; }
+      if (!code) { setError('Sin code en URL: ' + url.slice(0, 80)); return; }
       const { data: exData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeError) { setError('Exchange: ' + exchangeError.message); return; }
       if (!exData?.session) setError('Exchange ok pero sin sesión');
     } catch (err) {
       setError('Google: ' + (err?.message ?? 'desconocido'));
     } finally {
+      linkSub?.remove();
       setLoading(false);
     }
   }
