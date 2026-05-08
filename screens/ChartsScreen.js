@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, StatusBar, Alert,
+  ActivityIndicator, StatusBar,
 } from 'react-native';
+import { useAlert } from '../components/AppAlert';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../services/theme';
@@ -70,6 +71,7 @@ function DonutChart({ data, total, size = 180, theme }) {
 export default function ChartsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
+  const { alert } = useAlert();
   const userId = route?.params?.userId;
 
   const now = new Date();
@@ -83,7 +85,7 @@ export default function ChartsScreen({ route }) {
       setLoading(true);
       getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1)
         .then(data => setTransactions(data))
-        .catch(() => Alert.alert('Error', 'No se pudieron cargar los movimientos.'))
+        .catch(() => alert('Error', 'No se pudieron cargar los movimientos.'))
         .finally(() => setLoading(false));
     }, [userId, viewDate])
   );
@@ -196,6 +198,7 @@ export default function ChartsScreen({ route }) {
 
 function MonthlyBars({ userId, theme, currentDate, lang }) {
   const L = LABELS[lang];
+  const { alert } = useAlert();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -217,7 +220,7 @@ function MonthlyBars({ userId, theme, currentDate, lang }) {
             return { ...m, income: inc, expense: exp };
           }));
         })
-        .catch(() => Alert.alert('Error', 'No se pudieron cargar los datos mensuales.'))
+        .catch(() => alert('Error', 'No se pudieron cargar los datos mensuales.'))
         .finally(() => setLoading(false));
     }, [userId, currentDate])
   );

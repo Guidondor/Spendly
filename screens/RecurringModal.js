@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity,
-  FlatList, ActivityIndicator, Alert, StatusBar,
+  FlatList, ActivityIndicator, StatusBar,
 } from 'react-native';
+import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { getRecurring, deleteRecurring } from '../services/recurring';
 import { getCategoryByKey, CategoryIcon } from '../services/categories';
@@ -13,6 +14,7 @@ import { formatMoney } from '../services/format';
 export default function RecurringModal({ visible, onClose, userId }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
+  const { alert, confirm } = useAlert();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -32,10 +34,10 @@ export default function RecurringModal({ visible, onClose, userId }) {
   React.useEffect(() => { if (visible) load(); }, [visible]);
 
   function confirmDelete(item) {
-    Alert.alert(
-      'Eliminar recurrente',
-      `¿Eliminás "${item.description}"? No se borrarán los movimientos ya creados.`,
-      [
+    confirm({
+      title: 'Eliminar recurrente',
+      message: `¿Eliminás "${item.description}"? No se borrarán los movimientos ya creados.`,
+      buttons: [
         { text: L.cancel, style: 'cancel' },
         {
           text: 'Eliminar', style: 'destructive',
@@ -44,12 +46,12 @@ export default function RecurringModal({ visible, onClose, userId }) {
               await deleteRecurring(item.id);
               setItems(prev => prev.filter(i => i.id !== item.id));
             } catch {
-              Alert.alert('Error', 'No se pudo eliminar');
+              alert('Error', 'No se pudo eliminar');
             }
           },
         },
-      ]
-    );
+      ],
+    });
   }
 
   const s = useMemo(() => createStyles(theme), [theme]);

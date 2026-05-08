@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, Pressable, FlatList, StyleSheet,
-  ActivityIndicator, RefreshControl, Alert, StatusBar, Platform,
+  ActivityIndicator, RefreshControl, StatusBar, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
@@ -15,6 +15,7 @@ import RecurringModal from './RecurringModal';
 import SettingsModal from './SettingsModal';
 import { applyRecurring, deleteRecurring } from '../services/recurring';
 import { formatMoney } from '../services/format';
+import { useAlert } from '../components/AppAlert';
 
 
 function formatSectionDate(dateStr, L, lang) {
@@ -46,36 +47,28 @@ function groupByDate(transactions, L, lang) {
 function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang }) {
   const cat = getCategoryByKey(transaction.category, lang);
   const isIncome = transaction.type === 'income';
+  const { confirm } = useAlert();
 
   function showMenu() {
-    if (Platform.OS === 'web') {
-      const edit = window.confirm(`${transaction.description}\n\nOK = Editar · Cancelar = Eliminar`);
-      if (edit) {
-        onEdit();
-      } else {
-        if (window.confirm(`¿Eliminás "${transaction.description}"?`)) onDelete();
-      }
-      return;
-    }
-    Alert.alert(
-      transaction.description,
-      'Seleccioná una opción',
-      [
+    confirm({
+      title: transaction.description,
+      message: 'Seleccioná una opción',
+      buttons: [
         { text: 'Editar', onPress: onEdit },
         {
           text: 'Eliminar', style: 'destructive',
-          onPress: () => Alert.alert(
-            L.deleteTitle,
-            `¿Eliminás "${transaction.description}"?`,
-            [
+          onPress: () => confirm({
+            title: L.deleteTitle,
+            message: `¿Eliminás "${transaction.description}"?`,
+            buttons: [
               { text: L.cancel, style: 'cancel' },
               { text: L.deleteConfirm, style: 'destructive', onPress: onDelete },
-            ]
-          ),
+            ],
+          }),
         },
         { text: L.cancel, style: 'cancel' },
-      ]
-    );
+      ],
+    });
   }
 
   return (
@@ -197,6 +190,7 @@ const aiStyle = StyleSheet.create({
 export default function HomeScreen({ session }) {
   const { theme, isDark, toggleTheme, lang } = useTheme();
   const L = LABELS[lang];
+  const { alert, confirm } = useAlert();
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -218,7 +212,7 @@ export default function HomeScreen({ session }) {
       const data = await getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1);
       setTransactions(data);
     } catch {
-      Alert.alert('Error', 'No se pudieron cargar los movimientos.');
+      alert('Error', 'No se pudieron cargar los movimientos.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -239,23 +233,23 @@ export default function HomeScreen({ session }) {
 
       if (tx.recurring_id) {
         const msg = '¿Querés eliminar también la regla para que no se recree el mes que viene?';
-        if (Platform.OS === 'web') {
-          if (window.confirm(msg)) await deleteRecurring(tx.recurring_id);
-        } else {
-          Alert.alert('Gasto recurrente', msg, [
+        confirm({
+          title: 'Gasto recurrente',
+          message: msg,
+          buttons: [
             { text: 'No, solo este mes', style: 'cancel' },
             {
               text: 'Eliminar regla', style: 'destructive',
               onPress: async () => {
                 try { await deleteRecurring(tx.recurring_id); }
-                catch { Alert.alert('Error', 'No se pudo eliminar la regla recurrente.'); }
+                catch { alert('Error', 'No se pudo eliminar la regla recurrente.'); }
               },
             },
-          ]);
-        }
+          ],
+        });
       }
     } catch {
-      Alert.alert('Error', 'No se pudo eliminar.');
+      alert('Error', 'No se pudo eliminar.');
     }
   }
 

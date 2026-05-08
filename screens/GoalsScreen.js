@@ -2,8 +2,9 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, StatusBar, Modal, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useAlert } from '../components/AppAlert';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../services/theme';
 import { getGoals, addGoal, updateGoalSaved, deleteGoal } from '../services/goals';
@@ -21,11 +22,12 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
   const [addInput, setAddInput] = useState('');
   const [saving, setSaving] = useState(false);
   const color = goal.color || '#16a34a';
+  const { alert, confirm } = useAlert();
 
   async function handleUpdate(delta) {
     const parsed = parseFloat(addInput.replace(',', '.'));
     if (!addInput || isNaN(parsed) || parsed <= 0) {
-      Alert.alert('Monto inválido', 'Ingresá un número mayor a cero');
+      alert('Monto inválido', 'Ingresá un número mayor a cero');
       return;
     }
     setSaving(true);
@@ -36,21 +38,21 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
       setUpdateModal(false);
       setAddInput('');
     } catch {
-      Alert.alert('Error', 'No se pudo actualizar la meta');
+      alert('Error', 'No se pudo actualizar la meta');
     } finally {
       setSaving(false);
     }
   }
 
   function confirmDelete() {
-    Alert.alert(
-      'Eliminar meta',
-      `¿Eliminás "${goal.name}"?`,
-      [
+    confirm({
+      title: 'Eliminar meta',
+      message: `¿Eliminás "${goal.name}"?`,
+      buttons: [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Eliminar', style: 'destructive', onPress: () => onDelete(goal.id) },
-      ]
-    );
+      ],
+    });
   }
 
   const s = createStyles(theme);
@@ -151,6 +153,7 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
 export default function GoalsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
+  const { alert } = useAlert();
   const userId = route?.params?.userId;
 
   const [goals, setGoals] = useState([]);
@@ -177,9 +180,9 @@ export default function GoalsScreen({ route }) {
   const totalTarget = goals.reduce((s, g) => s + Number(g.target || 0), 0);
 
   async function handleAdd() {
-    if (!goalName.trim()) { Alert.alert('Error', 'Poné un nombre'); return; }
+    if (!goalName.trim()) { alert('Error', 'Poné un nombre'); return; }
     const parsed = parseFloat(goalTarget.replace(',', '.'));
-    if (!goalTarget || isNaN(parsed) || parsed <= 0) { Alert.alert('Error', 'Ingresá un monto mayor a cero'); return; }
+    if (!goalTarget || isNaN(parsed) || parsed <= 0) { alert('Error', 'Ingresá un monto mayor a cero'); return; }
     setSaving(true);
     try {
       const newGoal = await addGoal({ userId, name: goalName.trim(), icon: selectedIcon, color: selectedColor, target: parsed });
@@ -188,7 +191,7 @@ export default function GoalsScreen({ route }) {
       setGoalName('');
       setGoalTarget('');
     } catch {
-      Alert.alert('Error', 'No se pudo crear la meta');
+      alert('Error', 'No se pudo crear la meta');
     } finally {
       setSaving(false);
     }
@@ -199,7 +202,7 @@ export default function GoalsScreen({ route }) {
       await deleteGoal(id);
       setGoals(g => g.filter(gl => gl.id !== id));
     } catch {
-      Alert.alert('Error', 'No se pudo eliminar');
+      alert('Error', 'No se pudo eliminar');
     }
   }
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Switch,
+  ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
+import { useAlert } from '../components/AppAlert';
 import { addTransaction, updateTransaction } from '../services/transactions';
 import { addRecurring } from '../services/recurring';
 import { categorizeTransaction } from '../services/ai';
@@ -20,6 +21,7 @@ function formatDate(date) {
 export default function AddTransactionModal({ visible, onClose, onSaved, userId, editTransaction }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
+  const { alert } = useAlert();
   const isEditing = !!editTransaction;
 
   const [type, setType]                 = useState('expense');
@@ -79,11 +81,11 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       : cleaned.replace(/,/g, '');
     const parsed = parseFloat(normalized);
     if (!cleaned || isNaN(parsed) || parsed <= 0) {
-      Alert.alert(L.invalidAmount, L.amountRequired);
+      alert(L.invalidAmount, L.amountRequired);
       return;
     }
     if (!description.trim()) {
-      Alert.alert(L.descEmpty, L.descRequired);
+      alert(L.descEmpty, L.descRequired);
       return;
     }
     setSaving(true);
@@ -111,7 +113,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       onSaved(result);
     } catch (e) {
       console.error('AddTransactionModal save error:', e);
-      Alert.alert('Error', L.saveError);
+      alert('Error', L.saveError);
     } finally {
       setSaving(false);
     }

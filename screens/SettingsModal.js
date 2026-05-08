@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet, Switch, Platform, Alert, Linking,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Switch, Platform, Linking,
 } from 'react-native';
+import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { supabase } from '../services/supabase';
 
@@ -9,6 +10,7 @@ const PRIVACY_URL = 'https://guidondor.github.io/Spendly/privacy.html';
 
 export default function SettingsModal({ visible, onClose, session }) {
   const { theme, isDark, toggleTheme, lang, setLang } = useTheme();
+  const { confirm } = useAlert();
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const s = createStyles(theme);
@@ -19,11 +21,14 @@ export default function SettingsModal({ visible, onClose, session }) {
 
   function handleLogout() {
     onClose();
-    if (Platform.OS === 'web') {
-      if (window.confirm('¿Seguro que querés salir?')) supabase.auth.signOut();
-    } else {
-      supabase.auth.signOut();
-    }
+    confirm({
+      title: lang === 'es' ? 'Cerrar sesión' : 'Sign out',
+      message: lang === 'es' ? '¿Seguro que querés salir?' : 'Are you sure you want to sign out?',
+      buttons: [
+        { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
+        { text: lang === 'es' ? 'Salir' : 'Sign out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      ],
+    });
   }
 
   async function handleDeleteAccount() {
@@ -31,18 +36,16 @@ export default function SettingsModal({ visible, onClose, session }) {
       ? '¿Eliminar tu cuenta y todos tus datos? Esta acción es irreversible.'
       : 'Delete your account and all data? This action cannot be undone.';
 
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm(msg)
-      : await new Promise(resolve =>
-          Alert.alert(
-            lang === 'es' ? 'Eliminar cuenta' : 'Delete account',
-            msg,
-            [
-              { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: lang === 'es' ? 'Eliminar' : 'Delete', style: 'destructive', onPress: () => resolve(true) },
-            ]
-          )
-        );
+    const confirmed = await new Promise(resolve =>
+      confirm({
+        title: lang === 'es' ? 'Eliminar cuenta' : 'Delete account',
+        message: msg,
+        buttons: [
+          { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: lang === 'es' ? 'Eliminar' : 'Delete', style: 'destructive', onPress: () => resolve(true) },
+        ],
+      })
+    );
 
     if (!confirmed) return;
     setDeleting(true);

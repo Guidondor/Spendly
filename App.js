@@ -10,6 +10,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 
 import { supabase } from './services/supabase';
 import { ThemeProvider, useTheme } from './services/theme';
+import { AlertProvider } from './components/AppAlert';
 
 import OnboardingScreen from './screens/OnboardingScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -20,9 +21,6 @@ import BudgetsScreen from './screens/BudgetsScreen';
 import GoalsScreen from './screens/GoalsScreen';
 
 import { LABELS } from './constants/i18n';
-
-const lang = 'es';
-const L = LABELS[lang];
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -72,7 +70,8 @@ function IconGoals({ color, size }) {
 // ─── Tab Navigator ────────────────────────────────────────────────────────────
 
 function MainTabs({ session }) {
-  const { theme } = useTheme();
+  const { theme, lang } = useTheme();
+  const L = LABELS[lang];
   const insets = useSafeAreaInsets();
   const userId = session?.user?.id;
 
@@ -193,7 +192,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <RootNavigator />
+        <AlertProvider>
+          <RootNavigator />
+        </AlertProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

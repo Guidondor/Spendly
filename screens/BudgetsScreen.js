@@ -2,8 +2,9 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, StatusBar, Modal, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useAlert } from '../components/AppAlert';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../services/theme';
 import { getTransactions } from '../services/transactions';
@@ -16,6 +17,7 @@ import { formatMoney } from '../services/format';
 export default function BudgetsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
+  const { alert } = useAlert();
   const userId = route?.params?.userId;
 
   const now = new Date();
@@ -37,7 +39,7 @@ export default function BudgetsScreen({ route }) {
       const y = viewDate.getFullYear();
       Promise.all([getTransactions(userId, y, m), getBudgets(userId, m, y)])
         .then(([txs, bdgs]) => { setTransactions(txs); setBudgetsList(bdgs); })
-        .catch(() => Alert.alert('Error', 'No se pudieron cargar los presupuestos.'))
+        .catch(() => alert('Error', 'No se pudieron cargar los presupuestos.'))
         .finally(() => setLoading(false));
     }, [userId, viewDate])
   );
@@ -65,7 +67,7 @@ export default function BudgetsScreen({ route }) {
   async function handleSave() {
     const parsed = parseFloat(budgetInput.replace(',', '.'));
     if (!budgetInput || isNaN(parsed) || parsed <= 0) {
-      Alert.alert(L.budgetInvalidAmount, L.budgetAmountRequired);
+      alert(L.budgetInvalidAmount, L.budgetAmountRequired);
       return;
     }
     setSaving(true);
@@ -77,7 +79,7 @@ export default function BudgetsScreen({ route }) {
       setBudgetsList(updated);
       setModalVisible(false);
     } catch {
-      Alert.alert('Error', L.budgetSaveError);
+      alert('Error', L.budgetSaveError);
     } finally {
       setSaving(false);
     }
