@@ -195,6 +195,7 @@ export default function ChartsScreen({ route }) {
 }
 
 function MonthlyBars({ userId, theme, currentDate, lang }) {
+  const L = LABELS[lang];
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 

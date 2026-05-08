@@ -71,8 +71,14 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
   }
 
   async function handleSave() {
-    const parsed = parseFloat(amount.replace(',', '.'));
-    if (!amount || isNaN(parsed) || parsed <= 0) {
+    const cleaned = amount.trim().replace(/[^\d,.]/g, '');
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    const normalized = lastComma > lastDot
+      ? cleaned.replace(/\./g, '').replace(',', '.')
+      : cleaned.replace(/,/g, '');
+    const parsed = parseFloat(normalized);
+    if (!cleaned || isNaN(parsed) || parsed <= 0) {
       Alert.alert(L.invalidAmount, L.amountRequired);
       return;
     }
@@ -154,7 +160,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
               placeholderTextColor={theme.placeholderText}
               keyboardType="decimal-pad"
               value={amount}
-              onChangeText={setAmount}
+              onChangeText={text => setAmount(text.replace(/[^\d,.]/g, ''))}
               editable={!saving}
             />
 

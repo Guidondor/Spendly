@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle, Polyline, Line } from 'react-native-svg';
+import * as NavigationBar from 'expo-navigation-bar';
 
 import { supabase } from './services/supabase';
 import { ThemeProvider, useTheme } from './services/theme';
@@ -71,6 +73,7 @@ function IconGoals({ color, size }) {
 
 function MainTabs({ session }) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const userId = session?.user?.id;
 
   return (
@@ -82,8 +85,8 @@ function MainTabs({ session }) {
           borderTopColor: theme.navBorder,
           borderTopWidth: 1,
           paddingTop: 4,
-          paddingBottom: 8,
-          height: 60,
+          paddingBottom: 8 + insets.bottom,
+          height: 60 + insets.bottom,
         },
         tabBarActiveTintColor: theme.navActive,
         tabBarInactiveTintColor: theme.navInactive,
@@ -146,6 +149,12 @@ function RootNavigator() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    NavigationBar.setBehaviorAsync('overlay-swipe').catch(() => {});
+    NavigationBar.setVisibilityAsync('hidden').catch(() => {});
+  }, []);
+
   if (session === undefined || onboardingDone === undefined) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f6fbf8' }}>
@@ -182,8 +191,10 @@ function RootNavigator() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <RootNavigator />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootNavigator />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
