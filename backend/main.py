@@ -23,6 +23,8 @@ app.add_middleware(
 
 _api_key = os.getenv("ANTHROPIC_API_KEY")
 print(f"ANTHROPIC_API_KEY present: {bool(_api_key)} (len={len(_api_key) if _api_key else 0})", flush=True)
+_related = sorted(k for k in os.environ if "ANTHROP" in k.upper() or "API" in k.upper() or "KEY" in k.upper())
+print(f"env vars matching ANTHROP/API/KEY: {_related}", flush=True)
 client = anthropic.Anthropic(api_key=_api_key)
 
 VALID_CATEGORIES = [
