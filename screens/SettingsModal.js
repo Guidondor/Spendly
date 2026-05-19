@@ -6,6 +6,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { supabase } from '../services/supabase';
+import { useHousehold } from '../components/HouseholdProvider';
+import HouseholdModal from './HouseholdModal';
 import { AI_INSIGHT_CACHE_PREFIX } from './HomeScreen';
 
 const PRIVACY_URL = 'https://guidondor.github.io/Spendly/privacy.html';
@@ -23,8 +25,10 @@ async function clearAIInsightCache() {
 export default function SettingsModal({ visible, onClose, session }) {
   const { theme, isDark, toggleTheme, lang, setLang } = useTheme();
   const { confirm } = useAlert();
+  const { household, members } = useHousehold();
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [householdVisible, setHouseholdVisible] = useState(false);
   const s = createStyles(theme);
 
   const email = session?.user?.email ?? '';
@@ -114,6 +118,31 @@ export default function SettingsModal({ visible, onClose, session }) {
           />
         </View>
 
+        {/* Hogar compartido */}
+        <Text style={s.sectionLabel}>{lang === 'es' ? 'HOGAR COMPARTIDO' : 'SHARED HOUSEHOLD'}</Text>
+        <TouchableOpacity
+          style={s.row}
+          onPress={() => setHouseholdVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={s.rowIcon}>🏠</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.rowLabel}>
+              {household
+                ? household.name
+                : (lang === 'es' ? 'Crear o unirse a un hogar' : 'Create or join a household')}
+            </Text>
+            {household && (
+              <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 2 }}>
+                {members.length} {lang === 'es'
+                  ? (members.length === 1 ? 'miembro' : 'miembros')
+                  : (members.length === 1 ? 'member' : 'members')}
+              </Text>
+            )}
+          </View>
+          <Text style={{ fontSize: 18, color: theme.subtext }}>›</Text>
+        </TouchableOpacity>
+
         {/* Idioma */}
         <Text style={s.sectionLabel}>{lang === 'es' ? 'IDIOMA' : 'LANGUAGE'}</Text>
         <View style={s.langRow}>
@@ -160,6 +189,12 @@ export default function SettingsModal({ visible, onClose, session }) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <HouseholdModal
+        visible={householdVisible}
+        onClose={() => setHouseholdVisible(false)}
+        defaultName={displayName}
+      />
     </Modal>
   );
 }

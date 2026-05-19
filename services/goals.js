@@ -1,19 +1,36 @@
 import { supabase } from './supabase';
 
-export async function getGoals(userId) {
-  const { data, error } = await supabase
+// Devuelve metas privadas + del hogar (RLS filtra por visibilidad).
+export async function getGoals(userId, householdId = null) {
+  let q = supabase
     .from('goals')
     .select('*')
-    .eq('user_id', userId)
     .order('created_at', { ascending: false });
+
+  if (householdId) {
+    q = q.or(`user_id.eq.${userId},household_id.eq.${householdId}`);
+  } else {
+    q = q.eq('user_id', userId).is('household_id', null);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
 }
 
-export async function addGoal({ userId, name, icon, color, target }) {
+export async function addGoal({ userId, name, icon, color, target, householdId = null }) {
+  const row = {
+    user_id: userId,
+    name,
+    icon,
+    color,
+    target,
+    saved: 0,
+    household_id: householdId || null,
+  };
   const { data, error } = await supabase
     .from('goals')
-    .insert([{ user_id: userId, name, icon, color, target, saved: 0 }])
+    .insert([row])
     .select()
     .single();
   if (error) throw error;

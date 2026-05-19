@@ -12,6 +12,7 @@ import { getCategoryByKey } from '../services/categories';
 import { CategoryIcon } from '../services/categories';
 import { LABELS, MONTHS, MONTHS_SHORT } from '../constants/i18n';
 import { formatMoney } from '../services/format';
+import { useHousehold } from '../components/HouseholdProvider';
 
 
 function formatCompact(n) {
@@ -72,7 +73,9 @@ export default function ChartsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
+  const { household } = useHousehold();
   const userId = route?.params?.userId;
+  const householdId = household?.id ?? null;
 
   const now = new Date();
   const [viewDate, setViewDate] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -83,11 +86,11 @@ export default function ChartsScreen({ route }) {
     useCallback(() => {
       if (!userId) return;
       setLoading(true);
-      getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1)
+      getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1, householdId)
         .then(data => setTransactions(data))
         .catch(() => alert('Error', 'No se pudieron cargar los movimientos.'))
         .finally(() => setLoading(false));
-    }, [userId, viewDate])
+    }, [userId, viewDate, householdId])
   );
 
   const expenses = transactions.filter(t => t.type === 'expense');
@@ -189,14 +192,14 @@ export default function ChartsScreen({ route }) {
           </View>
 
           {/* Monthly trend */}
-          <MonthlyBars userId={userId} theme={theme} currentDate={viewDate} lang={lang} />
+          <MonthlyBars userId={userId} householdId={householdId} theme={theme} currentDate={viewDate} lang={lang} />
         </ScrollView>
       )}
     </View>
   );
 }
 
-function MonthlyBars({ userId, theme, currentDate, lang }) {
+function MonthlyBars({ userId, householdId, theme, currentDate, lang }) {
   const L = LABELS[lang];
   const { alert } = useAlert();
   const [data, setData] = useState([]);
@@ -211,7 +214,7 @@ function MonthlyBars({ userId, theme, currentDate, lang }) {
         months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: MONTHS_SHORT[lang][d.getMonth()].toUpperCase() });
       }
       setLoading(true);
-      Promise.all(months.map(m => getTransactions(userId, m.year, m.month)))
+      Promise.all(months.map(m => getTransactions(userId, m.year, m.month, householdId)))
         .then(results => {
           setData(months.map((m, i) => {
             const txs = results[i];
@@ -222,7 +225,7 @@ function MonthlyBars({ userId, theme, currentDate, lang }) {
         })
         .catch(() => alert('Error', 'No se pudieron cargar los datos mensuales.'))
         .finally(() => setLoading(false));
-    }, [userId, currentDate])
+    }, [userId, householdId, currentDate])
   );
 
   if (loading) return <ActivityIndicator size="small" color={theme.accent} style={{ marginVertical: 16 }} />;

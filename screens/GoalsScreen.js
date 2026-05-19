@@ -10,6 +10,7 @@ import { useTheme } from '../services/theme';
 import { getGoals, addGoal, updateGoalSaved, deleteGoal } from '../services/goals';
 import { LABELS } from '../constants/i18n';
 import { formatMoney } from '../services/format';
+import { useHousehold } from '../components/HouseholdProvider';
 
 
 const GOAL_ICONS = ['🎯', '🏠', '✈️', '🚗', '💻', '📱', '🎓', '💍', '🏖️', '💰'];
@@ -160,11 +161,14 @@ export default function GoalsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
+  const { household } = useHousehold();
   const userId = route?.params?.userId;
+  const householdId = household?.id ?? null;
 
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addModal, setAddModal] = useState(false);
+  const [addScope, setAddScope] = useState('mine'); // 'mine' | 'household'
   const [goalName, setGoalName] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('🎯');
@@ -175,15 +179,26 @@ export default function GoalsScreen({ route }) {
     useCallback(() => {
       if (!userId) return;
       setLoading(true);
-      getGoals(userId)
+      getGoals(userId, householdId)
         .then(data => setGoals(data))
         .catch(e => console.error('GoalsScreen load error:', e))
         .finally(() => setLoading(false));
-    }, [userId])
+    }, [userId, householdId])
   );
 
-  const totalSaved = goals.reduce((s, g) => s + Number(g.saved || 0), 0);
-  const totalTarget = goals.reduce((s, g) => s + Number(g.target || 0), 0);
+  const privateGoals  = useMemo(() => goals.filter(g => !g.household_id), [goals]);
+  const sharedGoals   = useMemo(() => goals.filter(g => !!g.household_id), [goals]);
+  const totalSaved    = goals.reduce((s, g) => s + Number(g.saved || 0), 0);
+  const totalTarget   = goals.reduce((s, g) => s + Number(g.target || 0), 0);
+
+  function openAdd(scope) {
+    setAddScope(scope);
+    setGoalName('');
+    setGoalTarget('');
+    setSelectedIcon('🎯');
+    setSelectedColor('#16a34a');
+    setAddModal(true);
+  }
 
   async function handleAdd() {
     if (!goalName.trim()) { alert('Error', 'Poné un nombre'); return; }
@@ -191,7 +206,14 @@ export default function GoalsScreen({ route }) {
     if (!goalTarget || isNaN(parsed) || parsed <= 0) { alert('Error', 'Ingresá un monto mayor a cero'); return; }
     setSaving(true);
     try {
-      const newGoal = await addGoal({ userId, name: goalName.trim(), icon: selectedIcon, color: selectedColor, target: parsed });
+      const newGoal = await addGoal({
+        userId,
+        name: goalName.trim(),
+        icon: selectedIcon,
+        color: selectedColor,
+        target: parsed,
+        householdId: addScope === 'household' ? householdId : null,
+      });
       setGoals(g => [newGoal, ...g]);
       setAddModal(false);
       setGoalName('');
@@ -228,28 +250,53 @@ export default function GoalsScreen({ route }) {
         <ActivityIndicator style={{ marginTop: 60 }} size="large" color={theme.accent} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 12 }}>
-          {goals.length === 0 ? (
+          {goals.length === 0 && !household ? (
             <View style={s.empty}>
               <Text style={{ fontSize: 56 }}>🎯</Text>
               <Text style={[s.emptyTitle, { color: theme.subtext }]}>Sin metas aún</Text>
               <Text style={[s.emptyHint, { color: theme.emptyText }]}>Agregá tu primera meta abajo</Text>
             </View>
-          ) : (
-            goals.map(goal => (
-              <GoalCard
-                key={goal.id}
-                goal={goal}
-                theme={theme}
-                L={L}
-                onUpdate={updated => setGoals(g => g.map(gl => gl.id === updated.id ? updated : gl))}
-                onDelete={handleDelete}
-              />
-            ))
-          )}
+          ) : null}
 
-          <TouchableOpacity style={s.addGoalBtn} onPress={() => setAddModal(true)}>
+          {/* Mis metas */}
+          <Text style={s.sectionHeader}>
+            {household ? (lang === 'es' ? 'MIS METAS' : 'MY GOALS') : L.goalsTitle.toUpperCase()}
+          </Text>
+          {privateGoals.map(goal => (
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              theme={theme}
+              L={L}
+              onUpdate={updated => setGoals(g => g.map(gl => gl.id === updated.id ? updated : gl))}
+              onDelete={handleDelete}
+            />
+          ))}
+          <TouchableOpacity style={s.addGoalBtn} onPress={() => openAdd('mine')}>
             <Text style={s.addGoalBtnText}>+ {L.addGoal}</Text>
           </TouchableOpacity>
+
+          {/* Metas del hogar */}
+          {household && (
+            <>
+              <Text style={[s.sectionHeader, { marginTop: 16 }]}>
+                {(lang === 'es' ? 'METAS DEL HOGAR — ' : 'HOUSEHOLD GOALS — ') + household.name.toUpperCase()}
+              </Text>
+              {sharedGoals.map(goal => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  theme={theme}
+                  L={L}
+                  onUpdate={updated => setGoals(g => g.map(gl => gl.id === updated.id ? updated : gl))}
+                  onDelete={handleDelete}
+                />
+              ))}
+              <TouchableOpacity style={s.addGoalBtn} onPress={() => openAdd('household')}>
+                <Text style={s.addGoalBtnText}>+ {lang === 'es' ? 'Agregar meta del hogar' : 'Add household goal'}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </ScrollView>
       )}
 
@@ -263,7 +310,10 @@ export default function GoalsScreen({ route }) {
           <ScrollView style={[s.modal, { backgroundColor: theme.card }]} keyboardShouldPersistTaps="handled">
             <View style={s.handle} />
             <View style={s.modalTitleRow}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>{L.newGoal}</Text>
+              <Text style={[s.modalTitle, { color: theme.text }]}>
+                {L.newGoal}
+                {addScope === 'household' && household ? `  ·  ${household.name}` : ''}
+              </Text>
               <TouchableOpacity onPress={() => setAddModal(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Text style={{ fontSize: 18, color: theme.subtext }}>✕</Text>
               </TouchableOpacity>
@@ -329,6 +379,10 @@ export default function GoalsScreen({ route }) {
 function createStyles(t) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
+    sectionHeader: {
+      fontSize: 11, fontWeight: '800', color: t.sectionText,
+      letterSpacing: 0.8, marginBottom: 4, marginLeft: 4,
+    },
     header: {
       backgroundColor: t.header,
       paddingTop: 52, paddingHorizontal: 20, paddingBottom: 16,

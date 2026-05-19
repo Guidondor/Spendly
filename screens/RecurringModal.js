@@ -9,12 +9,15 @@ import { getRecurring, deleteRecurring } from '../services/recurring';
 import { getCategoryByKey, CategoryIcon } from '../services/categories';
 import { LABELS } from '../constants/i18n';
 import { formatMoney } from '../services/format';
+import { useHousehold } from '../components/HouseholdProvider';
 
 
 export default function RecurringModal({ visible, onClose, userId }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert, confirm } = useAlert();
+  const { household, getMemberById } = useHousehold();
+  const householdId = household?.id ?? null;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -22,14 +25,14 @@ export default function RecurringModal({ visible, onClose, userId }) {
     if (!userId) return;
     setLoading(true);
     try {
-      const data = await getRecurring(userId);
+      const data = await getRecurring(userId, householdId);
       setItems(data);
     } catch (e) {
       console.error('RecurringModal load error:', e);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, householdId]);
 
   React.useEffect(() => { if (visible) load(); }, [visible]);
 
@@ -87,6 +90,9 @@ export default function RecurringModal({ visible, onClose, userId }) {
             renderItem={({ item }) => {
               const cat = getCategoryByKey(item.category, lang);
               const isIncome = item.type === 'income';
+              const isShared = !!item.household_id;
+              const owner = isShared ? getMemberById(item.user_id) : null;
+              const canDelete = item.user_id === userId; // solo autor borra la regla
               return (
                 <View style={[s.card, { backgroundColor: theme.bg, borderColor: theme.cardBorder, borderWidth: theme.dark ? 1 : 0 }]}>
                   <View style={[s.iconWrap, { backgroundColor: cat.color + '20' }]}>
@@ -94,20 +100,23 @@ export default function RecurringModal({ visible, onClose, userId }) {
                   </View>
                   <View style={s.info}>
                     <Text style={[s.desc, { color: theme.text }]} numberOfLines={1}>{item.description}</Text>
-                    <Text style={[s.meta, { color: theme.subtext }]}>
-                      {cat.name} · Día {item.day_of_month} de cada mes
+                    <Text style={[s.meta, { color: theme.subtext }]} numberOfLines={1}>
+                      {isShared ? `🏠 Hogar · ` : ''}{cat.name} · Día {item.day_of_month}
+                      {isShared && owner ? ` · ${owner.display_name}` : ''}
                     </Text>
                   </View>
                   <Text style={[s.amount, { color: isIncome ? theme.income : theme.expense }]}>
                     {isIncome ? '+' : '-'}{formatMoney(item.amount)}
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => confirmDelete(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={s.deleteBtn}
-                  >
-                    <Text style={{ fontSize: 16, color: theme.subtext }}>🗑</Text>
-                  </TouchableOpacity>
+                  {canDelete && (
+                    <TouchableOpacity
+                      onPress={() => confirmDelete(item)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={s.deleteBtn}
+                    >
+                      <Text style={{ fontSize: 16, color: theme.subtext }}>🗑</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             }}

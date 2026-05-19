@@ -12,13 +12,89 @@ import { getBudgets, setBudget } from '../services/budgets';
 import { EXPENSE_CATEGORIES, CategoryIcon } from '../services/categories';
 import { LABELS, MONTHS } from '../constants/i18n';
 import { formatMoney } from '../services/format';
+import { useHousehold } from '../components/HouseholdProvider';
+
+// Helper: renderiza una card de categoría con su barra de progreso.
+function renderBudgetCard({ cat, scope, spent, budget, onPress, s, theme, L }) {
+  const budgetAmt = budget ? Number(budget.amount) : 0;
+  const pct = budgetAmt > 0 ? (spent / budgetAmt) * 100 : 0;
+  const isOver = budgetAmt > 0 && spent > budgetAmt;
+  const isNear = budgetAmt > 0 && pct >= 80 && !isOver;
+  const key = `${scope}-${cat.key}`;
+  return (
+    <View key={key} style={s.card}>
+      <View style={s.cardRow}>
+        <View style={[s.iconWrap, { backgroundColor: cat.color + '18' }]}>
+          <CategoryIcon catKey={cat.key} size={20} color={cat.color} />
+        </View>
+        <View style={s.cardInfo}>
+          <View style={s.cardTopRow}>
+            <Text style={s.catName}>{cat.name}</Text>
+            {isOver ? (
+              <View style={s.badgeOver}><Text style={s.badgeOverText}>{L.overBudget}</Text></View>
+            ) : isNear ? (
+              <View style={s.badgeNear}><Text style={s.badgeNearText}>{L.nearLimit}</Text></View>
+            ) : null}
+          </View>
+          {budgetAmt > 0 ? (
+            <Text style={s.amountLine}>
+              <Text style={{ color: isOver ? theme.expense : theme.text, fontWeight: '700' }}>
+                {formatMoney(spent)}
+              </Text>
+              <Text style={{ color: theme.subtext }}> {L.budgetOf} {formatMoney(budgetAmt)}</Text>
+            </Text>
+          ) : (
+            <Text style={s.noBudget}>
+              {spent > 0 ? formatMoney(spent) + ' ' + L.spent.toLowerCase() : L.noBudget}
+            </Text>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[s.editBtn, { backgroundColor: theme.input }]}
+          onPress={onPress}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={[s.editBtnText, { color: theme.subtext }]}>✏️</Text>
+        </TouchableOpacity>
+      </View>
+      {budgetAmt > 0 && (
+        <>
+          <View style={[s.progressTrack, { backgroundColor: theme.input, marginTop: 12 }]}>
+            {isOver ? (
+              <View style={{ flexDirection: 'row', flex: 1, height: 6 }}>
+                <View style={[s.progressFill, {
+                  width: `${(budgetAmt / spent) * 100}%`,
+                  backgroundColor: cat.color,
+                }]} />
+                <View style={{ width: 2, backgroundColor: '#fff' }} />
+                <View style={[s.progressFill, { flex: 1, backgroundColor: theme.expense }]} />
+              </View>
+            ) : (
+              <View style={[s.progressFill, {
+                width: `${Math.min(pct, 100)}%`,
+                backgroundColor: isNear ? '#f59e0b' : cat.color,
+              }]} />
+            )}
+          </View>
+          <Text style={[s.remainingText, { color: isOver ? theme.expense : theme.subtext }]}>
+            {isOver
+              ? `-${formatMoney(spent - budgetAmt)} ${L.overBudget.toLowerCase()}`
+              : `${formatMoney(budgetAmt - spent)} ${L.remaining}`}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
 
 
 export default function BudgetsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
+  const { household } = useHousehold();
   const userId = route?.params?.userId;
+  const householdId = household?.id ?? null;
 
   const now = new Date();
   const [viewDate, setViewDate] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -28,6 +104,7 @@ export default function BudgetsScreen({ route }) {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editCat, setEditCat] = useState(null);
+  const [editScope, setEditScope] = useState('mine'); // 'mine' | 'household'
   const [budgetInput, setBudgetInput] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -37,29 +114,50 @@ export default function BudgetsScreen({ route }) {
       setLoading(true);
       const m = viewDate.getMonth() + 1;
       const y = viewDate.getFullYear();
-      Promise.all([getTransactions(userId, y, m), getBudgets(userId, m, y)])
+      Promise.all([
+        getTransactions(userId, y, m, householdId),
+        getBudgets(userId, m, y, householdId),
+      ])
         .then(([txs, bdgs]) => { setTransactions(txs); setBudgetsList(bdgs); })
         .catch(() => alert('Error', 'No se pudieron cargar los presupuestos.'))
         .finally(() => setLoading(false));
-    }, [userId, viewDate])
+    }, [userId, viewDate, householdId])
   );
 
-  const spentByCategory = useMemo(() => {
+  // Gastado por categoría — separado por scope.
+  // Privado: txs con household_id NULL y user_id = userId.
+  // Hogar: txs con household_id = household.id (suma de todos los miembros).
+  const spentPrivateByCategory = useMemo(() => {
     const map = {};
-    transactions.filter(t => t.type === 'expense').forEach(t => {
-      if (!map[t.category]) map[t.category] = 0;
-      map[t.category] += Number(t.amount);
-    });
+    transactions
+      .filter(t => t.type === 'expense' && !t.household_id && t.user_id === userId)
+      .forEach(t => {
+        map[t.category] = (map[t.category] || 0) + Number(t.amount);
+      });
+    return map;
+  }, [transactions, userId]);
+
+  const spentSharedByCategory = useMemo(() => {
+    const map = {};
+    transactions
+      .filter(t => t.type === 'expense' && !!t.household_id)
+      .forEach(t => {
+        map[t.category] = (map[t.category] || 0) + Number(t.amount);
+      });
     return map;
   }, [transactions]);
 
-  function getBudgetForCat(catKey) {
-    return budgets.find(b => b.category === catKey);
+  function getBudgetFor(catKey, scope) {
+    if (scope === 'household') {
+      return budgets.find(b => b.category === catKey && b.household_id === householdId);
+    }
+    return budgets.find(b => b.category === catKey && !b.household_id && b.user_id === userId);
   }
 
-  function openEdit(cat) {
-    const b = getBudgetForCat(cat.key);
+  function openEdit(cat, scope) {
+    const b = getBudgetFor(cat.key, scope);
     setEditCat(cat);
+    setEditScope(scope);
     setBudgetInput(b ? String(b.amount) : '');
     setModalVisible(true);
   }
@@ -74,8 +172,15 @@ export default function BudgetsScreen({ route }) {
     try {
       const m = viewDate.getMonth() + 1;
       const y = viewDate.getFullYear();
-      await setBudget(userId, editCat.key, parsed, m, y);
-      const updated = await getBudgets(userId, m, y);
+      await setBudget({
+        userId,
+        category: editCat.key,
+        amount: parsed,
+        month: m,
+        year: y,
+        householdId: editScope === 'household' ? householdId : null,
+      });
+      const updated = await getBudgets(userId, m, y, householdId);
       setBudgetsList(updated);
       setModalVisible(false);
     } catch {
@@ -112,87 +217,37 @@ export default function BudgetsScreen({ route }) {
         <ActivityIndicator style={{ marginTop: 60 }} size="large" color={theme.accent} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 12 }}>
-          {EXPENSE_CATEGORIES.map(cat => {
-            const spent = spentByCategory[cat.key] || 0;
-            const budget = getBudgetForCat(cat.key);
-            const budgetAmt = budget ? Number(budget.amount) : 0;
-            const pct = budgetAmt > 0 ? (spent / budgetAmt) * 100 : 0;
-            const isOver = budgetAmt > 0 && spent > budgetAmt;
-            const isNear = budgetAmt > 0 && pct >= 80 && !isOver;
+          {/* Sección: Mis presupuestos */}
+          <Text style={s.sectionHeader}>
+            {household ? (lang === 'es' ? 'MIS PRESUPUESTOS' : 'MY BUDGETS') : L.budgetsTitle.toUpperCase()}
+          </Text>
+          {EXPENSE_CATEGORIES.map(cat =>
+            renderBudgetCard({
+              cat, scope: 'mine',
+              spent: spentPrivateByCategory[cat.key] || 0,
+              budget: getBudgetFor(cat.key, 'mine'),
+              onPress: () => openEdit(cat, 'mine'),
+              s, theme, L,
+            })
+          )}
 
-            return (
-              <View key={cat.key} style={s.card}>
-                <View style={s.cardRow}>
-                  <View style={[s.iconWrap, { backgroundColor: cat.color + '18' }]}>
-                    <CategoryIcon catKey={cat.key} size={20} color={cat.color} />
-                  </View>
-
-                  <View style={s.cardInfo}>
-                    <View style={s.cardTopRow}>
-                      <Text style={s.catName}>{cat.name}</Text>
-                      {isOver ? (
-                        <View style={s.badgeOver}>
-                          <Text style={s.badgeOverText}>{L.overBudget}</Text>
-                        </View>
-                      ) : isNear ? (
-                        <View style={s.badgeNear}>
-                          <Text style={s.badgeNearText}>{L.nearLimit}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    {budgetAmt > 0 ? (
-                      <Text style={s.amountLine}>
-                        <Text style={{ color: isOver ? theme.expense : theme.text, fontWeight: '700' }}>
-                          {formatMoney(spent)}
-                        </Text>
-                        <Text style={{ color: theme.subtext }}> {L.budgetOf} {formatMoney(budgetAmt)}</Text>
-                      </Text>
-                    ) : (
-                      <Text style={s.noBudget}>
-                        {spent > 0 ? formatMoney(spent) + ' ' + L.spent.toLowerCase() : L.noBudget}
-                      </Text>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    style={[s.editBtn, { backgroundColor: theme.input }]}
-                    onPress={() => openEdit(cat)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text style={[s.editBtnText, { color: theme.subtext }]}>✏️</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {budgetAmt > 0 && (
-                  <>
-                    <View style={[s.progressTrack, { backgroundColor: theme.input, marginTop: 12 }]}>
-                      {isOver ? (
-                        <View style={{ flexDirection: 'row', flex: 1, height: 6 }}>
-                          <View style={[s.progressFill, {
-                            width: `${(budgetAmt / spent) * 100}%`,
-                            backgroundColor: cat.color,
-                          }]} />
-                          <View style={{ width: 2, backgroundColor: '#fff' }} />
-                          <View style={[s.progressFill, { flex: 1, backgroundColor: theme.expense }]} />
-                        </View>
-                      ) : (
-                        <View style={[s.progressFill, {
-                          width: `${Math.min(pct, 100)}%`,
-                          backgroundColor: isNear ? '#f59e0b' : cat.color,
-                        }]} />
-                      )}
-                    </View>
-                    <Text style={[s.remainingText, { color: isOver ? theme.expense : theme.subtext }]}>
-                      {isOver
-                        ? `-${formatMoney(spent - budgetAmt)} ${L.overBudget.toLowerCase()}`
-                        : `${formatMoney(budgetAmt - spent)} ${L.remaining}`}
-                    </Text>
-                  </>
-                )}
-              </View>
-            );
-          })}
+          {/* Sección: Presupuestos del hogar */}
+          {household && (
+            <>
+              <Text style={[s.sectionHeader, { marginTop: 20 }]}>
+                {(lang === 'es' ? 'PRESUPUESTOS DEL HOGAR — ' : 'HOUSEHOLD BUDGETS — ') + household.name.toUpperCase()}
+              </Text>
+              {EXPENSE_CATEGORIES.map(cat =>
+                renderBudgetCard({
+                  cat, scope: 'household',
+                  spent: spentSharedByCategory[cat.key] || 0,
+                  budget: getBudgetFor(cat.key, 'household'),
+                  onPress: () => openEdit(cat, 'household'),
+                  s, theme, L,
+                })
+              )}
+            </>
+          )}
         </ScrollView>
       )}
 
@@ -213,7 +268,8 @@ export default function BudgetsScreen({ route }) {
                 </View>
               )}
               <Text style={[s.modalTitle, { color: theme.text }]}>
-                {editCat?.name} — {L.budgetAmount}
+                {editCat?.name}
+                {editScope === 'household' && household ? `  ·  ${household.name}` : ''}
               </Text>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
@@ -250,6 +306,10 @@ export default function BudgetsScreen({ route }) {
 function createStyles(t) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bg },
+    sectionHeader: {
+      fontSize: 11, fontWeight: '800', color: t.sectionText,
+      letterSpacing: 0.8, marginBottom: 4, marginLeft: 4,
+    },
     header: {
       backgroundColor: t.header,
       paddingTop: 52, paddingHorizontal: 20, paddingBottom: 4,

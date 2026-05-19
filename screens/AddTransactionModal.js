@@ -10,6 +10,7 @@ import { addRecurring } from '../services/recurring';
 import { categorizeTransaction } from '../services/ai';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, getCategoryByKey, CategoryIcon } from '../services/categories';
 import { useTheme } from '../services/theme';
+import { useHousehold } from '../components/HouseholdProvider';
 import { LABELS } from '../constants/i18n';
 
 
@@ -23,6 +24,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
+  const { household } = useHousehold();
   const isEditing = !!editTransaction;
 
   const [type, setType]                 = useState('expense');
@@ -36,6 +38,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
   const [dayOfMonth, setDayOfMonth]     = useState(new Date().getDate());
   const [txDate, setTxDate]             = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isShared, setIsShared]         = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -46,6 +49,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       setCategory(editTransaction.category);
       setAiSuggested(false);
       setTxDate(new Date(editTransaction.date + 'T12:00:00'));
+      setIsShared(!!editTransaction.household_id);
     } else {
       setType('expense');
       setAmount('');
@@ -55,6 +59,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       setIsRecurring(false);
       setDayOfMonth(new Date().getDate());
       setTxDate(new Date());
+      setIsShared(false);
     }
     setShowDatePicker(false);
   }, [visible, editTransaction]);
@@ -98,10 +103,13 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
     try {
       let result;
       const dateStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
+      const householdId = (household && isShared) ? household.id : null;
+
       if (isEditing) {
         result = await updateTransaction(editTransaction.id, {
           amount: parsed, description: description.trim(), type, category,
           date: dateStr,
+          household_id: householdId,
         });
       } else {
         let recurringId = null;
@@ -109,6 +117,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
           const rule = await addRecurring({
             userId, amount: parsed, description: description.trim(), type, category,
             day_of_month: dayOfMonth,
+            householdId,
           });
           recurringId = rule.id;
         }
@@ -116,6 +125,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
           userId, amount: parsed, description: description.trim(), type, category,
           date: dateStr,
           recurring_id: recurringId,
+          household_id: householdId,
         });
       }
       onSaved(result);
@@ -238,6 +248,24 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
                   if (selected) setTxDate(selected);
                 }}
               />
+            )}
+
+            {/* Compartir con el hogar */}
+            {household && (
+              <View style={[s.recurringSection, { marginBottom: 12 }]}>
+                <View style={s.recurringRow}>
+                  <Text style={s.recurringIcon}>🏠</Text>
+                  <Text style={[s.recurringLabel, { color: theme.text }]}>
+                    Compartir con {household.name}
+                  </Text>
+                  <Switch
+                    value={isShared}
+                    onValueChange={setIsShared}
+                    trackColor={{ false: theme.input, true: theme.accent + '66' }}
+                    thumbColor={isShared ? theme.accent : theme.subtext}
+                  />
+                </View>
+              </View>
             )}
 
             {/* Recurrente */}

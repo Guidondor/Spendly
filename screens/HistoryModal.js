@@ -6,6 +6,7 @@ import {
 import { getTransactionsByYear } from '../services/transactions';
 import { useTheme } from '../services/theme';
 import { formatMoney } from '../services/format';
+import { useHousehold } from '../components/HouseholdProvider';
 
 const MONTHS_ES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -38,6 +39,8 @@ function groupByMonth(transactions) {
 
 export default function HistoryModal({ visible, onClose, userId }) {
   const { theme } = useTheme();
+  const { household } = useHousehold();
+  const householdId = household?.id ?? null;
   const currentYear = new Date().getFullYear();
   const [year, setYear]           = useState(currentYear);
   const [transactions, setTransactions] = useState([]);
@@ -46,13 +49,13 @@ export default function HistoryModal({ visible, onClose, userId }) {
   useEffect(() => {
     if (!visible || !userId) return;
     load();
-  }, [visible, year, userId]);
+  }, [visible, year, userId, householdId]);
 
   async function load() {
     setLoading(true);
     setTransactions([]);
     try {
-      const data = await getTransactionsByYear(userId, year);
+      const data = await getTransactionsByYear(userId, year, householdId);
       setTransactions(data);
     } catch {
       // silencioso

@@ -1,27 +1,36 @@
 import { supabase } from './supabase';
 
-export async function getTransactions(userId, year, month) {
+export async function getTransactions(userId, year, month, householdId = null) {
   const mm = String(month).padStart(2, '0');
   const lastDay = new Date(year, month, 0).getDate();
   const startDate = `${year}-${mm}-01`;
   const endDate   = `${year}-${mm}-${lastDay}`;
 
-  const { data, error } = await supabase
+  let q = supabase
     .from('transactions')
     .select('*')
-    .eq('user_id', userId)
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
+  if (householdId) {
+    // Privadas del user + compartidas del hogar
+    q = q.or(`user_id.eq.${userId},household_id.eq.${householdId}`);
+  } else {
+    // Solo privadas del user
+    q = q.eq('user_id', userId).is('household_id', null);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
 }
 
-export async function addTransaction({ userId, amount, description, type, category, date, recurring_id }) {
+export async function addTransaction({ userId, amount, description, type, category, date, recurring_id, household_id }) {
   const row = { user_id: userId, amount, description, type, category, date };
   if (recurring_id) row.recurring_id = recurring_id;
+  if (household_id) row.household_id = household_id;
   const { data, error } = await supabase
     .from('transactions')
     .insert([row])
@@ -41,9 +50,10 @@ export async function deleteTransaction(id) {
   if (error) throw error;
 }
 
-export async function updateTransaction(id, { amount, description, type, category, date }) {
+export async function updateTransaction(id, { amount, description, type, category, date, household_id }) {
   const patch = { amount, description, type, category };
   if (date) patch.date = date;
+  if (household_id !== undefined) patch.household_id = household_id;
   const { data, error } = await supabase
     .from('transactions')
     .update(patch)
@@ -55,18 +65,24 @@ export async function updateTransaction(id, { amount, description, type, categor
   return data;
 }
 
-export async function getTransactionsByYear(userId, year) {
+export async function getTransactionsByYear(userId, year, householdId = null) {
   const startDate = `${year}-01-01`;
   const endDate   = `${year}-12-31`;
 
-  const { data, error } = await supabase
+  let q = supabase
     .from('transactions')
     .select('*')
-    .eq('user_id', userId)
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date', { ascending: false });
 
+  if (householdId) {
+    q = q.or(`user_id.eq.${userId},household_id.eq.${householdId}`);
+  } else {
+    q = q.eq('user_id', userId).is('household_id', null);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
 }

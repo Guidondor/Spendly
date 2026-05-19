@@ -17,6 +17,8 @@ import SettingsModal from './SettingsModal';
 import { applyRecurring, deleteRecurring } from '../services/recurring';
 import { formatMoney } from '../services/format';
 import { useAlert } from '../components/AppAlert';
+import { useHousehold } from '../components/HouseholdProvider';
+import AuthorBadge from '../components/AuthorBadge';
 
 
 function formatSectionDate(dateStr, L, lang) {
@@ -45,30 +47,34 @@ function groupByDate(transactions, L, lang) {
 
 // ─── Transaction item ─────────────────────────────────────────────────────────
 
-function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang }) {
+function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author, canEdit }) {
   const cat = getCategoryByKey(transaction.category, lang);
   const isIncome = transaction.type === 'income';
+  const isShared = !!transaction.household_id;
   const { confirm } = useAlert();
 
   function showMenu() {
+    const buttons = [];
+    if (canEdit) {
+      buttons.push({ text: 'Editar', onPress: onEdit });
+      buttons.push({
+        text: 'Eliminar', style: 'destructive',
+        onPress: () => confirm({
+          title: L.deleteTitle,
+          message: `¿Eliminás "${transaction.description}"?`,
+          buttons: [
+            { text: L.cancel, style: 'cancel' },
+            { text: L.deleteConfirm, style: 'destructive', onPress: onDelete },
+          ],
+        }),
+      });
+    }
+    buttons.push({ text: L.cancel, style: 'cancel' });
+
     confirm({
       title: transaction.description,
-      message: 'Seleccioná una opción',
-      buttons: [
-        { text: 'Editar', onPress: onEdit },
-        {
-          text: 'Eliminar', style: 'destructive',
-          onPress: () => confirm({
-            title: L.deleteTitle,
-            message: `¿Eliminás "${transaction.description}"?`,
-            buttons: [
-              { text: L.cancel, style: 'cancel' },
-              { text: L.deleteConfirm, style: 'destructive', onPress: onDelete },
-            ],
-          }),
-        },
-        { text: L.cancel, style: 'cancel' },
-      ],
+      message: canEdit ? 'Seleccioná una opción' : 'Esta es una transacción de otro miembro del hogar.',
+      buttons,
     });
   }
 
@@ -88,7 +94,20 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang }) {
         <Text style={[txStyle.description, { color: theme.text }]} numberOfLines={1}>
           {transaction.description}
         </Text>
-        <Text style={[txStyle.category, { color: theme.subtext }]}>{cat.name}</Text>
+        <View style={txStyle.metaRow}>
+          {isShared && author && (
+            <>
+              <AuthorBadge member={author} size="sm" style={{ marginRight: 4 }} />
+              <Text style={[txStyle.metaName, { color: theme.text }]}>
+                {author.display_name}
+              </Text>
+              <Text style={[txStyle.metaSep, { color: theme.subtext }]}>·</Text>
+            </>
+          )}
+          <Text style={[txStyle.category, { color: theme.subtext }]}>
+            {isShared ? 'Hogar' : cat.name}
+          </Text>
+        </View>
       </View>
       <Text style={[txStyle.amount, { color: isIncome ? theme.income : theme.expense }]}>
         {isIncome ? '+' : '-'}{formatMoney(transaction.amount)}
@@ -112,6 +131,9 @@ const txStyle = StyleSheet.create({
   info: { flex: 1 },
   description: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
   category: { fontSize: 12, fontWeight: '500' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaName: { fontSize: 12, fontWeight: '700' },
+  metaSep: { fontSize: 12, fontWeight: '700' },
   amount: { fontSize: 15, fontWeight: '700' },
 });
 
@@ -214,6 +236,7 @@ export default function HomeScreen({ session }) {
   const { theme, isDark, toggleTheme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert, confirm } = useAlert();
+  const { household, getMemberById } = useHousehold();
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -223,16 +246,18 @@ export default function HomeScreen({ session }) {
   const [recurringVisible, setRecurringVisible] = useState(false);
   const [settingsVisible, setSettingsVisible]   = useState(false);
   const [editingTx, setEditingTx]           = useState(null);
+  const [scopeFilter, setScopeFilter]       = useState('all'); // 'all' | 'mine' | 'household'
 
   const now = new Date();
   const [viewDate, setViewDate] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
   const userId = session?.user?.id;
+  const householdId = household?.id ?? null;
 
   const loadTransactions = useCallback(async () => {
     if (!userId) return;
     try {
-      await applyRecurring(userId);
-      const data = await getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1);
+      await applyRecurring(userId, householdId);
+      const data = await getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1, householdId);
       setTransactions(data);
     } catch {
       alert('Error', 'No se pudieron cargar los movimientos.');
@@ -240,7 +265,7 @@ export default function HomeScreen({ session }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId, viewDate]);
+  }, [userId, viewDate, householdId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -286,14 +311,51 @@ export default function HomeScreen({ session }) {
   }
 
 
-  const income   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-  const expenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  // Filtrado por scope (Todo / Mías / Hogar)
+  const filteredTxs = useMemo(() => {
+    if (!household) return transactions; // sin hogar todo se considera "mío"
+    if (scopeFilter === 'mine')      return transactions.filter(t => !t.household_id);
+    if (scopeFilter === 'household') return transactions.filter(t => !!t.household_id);
+    return transactions;
+  }, [transactions, scopeFilter, household]);
+
+  // Balance personal vs hogar (separados solo si hay hogar)
+  const personalIncome   = transactions.filter(t => !t.household_id && t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const personalExpenses = transactions.filter(t => !t.household_id && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const householdIncome   = transactions.filter(t => t.household_id && t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const householdExpenses = transactions.filter(t => t.household_id && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+
+  const income   = personalIncome + (household ? householdIncome : 0);
+  const expenses = personalExpenses + (household ? householdExpenses : 0);
   const balance  = income - expenses;
-  const sections = useMemo(() => groupByDate(transactions, L, lang), [transactions, L, lang]);
+
+  const sections = useMemo(() => groupByDate(filteredTxs, L, lang), [filteredTxs, L, lang]);
   const s = useMemo(() => createStyles(theme), [theme]);
 
   const ListHeader = (
     <>
+      {/* Pills de filtro (solo si hay hogar) */}
+      {household && (
+        <View style={s.pillsRow}>
+          {[
+            { key: 'all',       label: 'Todo' },
+            { key: 'mine',      label: 'Mías' },
+            { key: 'household', label: 'Hogar' },
+          ].map(p => (
+            <TouchableOpacity
+              key={p.key}
+              style={[s.pill, scopeFilter === p.key && { backgroundColor: theme.accent }]}
+              onPress={() => setScopeFilter(p.key)}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.pillText, { color: scopeFilter === p.key ? '#fff' : theme.subtext }]}>
+                {p.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Balance card */}
       <View style={s.balanceCard}>
         <Text style={s.balanceLabel}>{L.balance.toUpperCase()}</Text>
@@ -304,6 +366,23 @@ export default function HomeScreen({ session }) {
         <View style={s.balanceBar}>
           <View style={[s.balanceBarFill, { backgroundColor: theme.income }]} />
         </View>
+
+        {household && (
+          <View style={s.splitRow}>
+            <View style={s.splitItem}>
+              <Text style={[s.splitLabel, { color: theme.subtext }]}>Personal</Text>
+              <Text style={[s.splitValue, { color: theme.text }]}>
+                {formatMoney(personalIncome - personalExpenses)}
+              </Text>
+            </View>
+            <View style={s.splitItem}>
+              <Text style={[s.splitLabel, { color: theme.subtext }]}>Hogar</Text>
+              <Text style={[s.splitValue, { color: theme.text }]}>
+                {formatMoney(householdIncome - householdExpenses)}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={s.summaryRow}>
           <View style={s.summaryItem}>
@@ -383,17 +462,23 @@ export default function HomeScreen({ session }) {
           renderItem={({ item: section }) => (
             <View>
               <Text style={[s.sectionHeader, { color: theme.sectionText }]}>{section.label}</Text>
-              {section.data.map(tx => (
-                <TransactionItem
-                  key={tx.id}
-                  transaction={tx}
-                  theme={theme}
-                  L={L}
-                  lang={lang}
-                  onDelete={() => handleDelete(tx)}
-                  onEdit={() => { setEditingTx(tx); setModalVisible(true); }}
-                />
-              ))}
+              {section.data.map(tx => {
+                const author = tx.household_id ? getMemberById(tx.user_id) : null;
+                const canEdit = tx.user_id === userId;
+                return (
+                  <TransactionItem
+                    key={tx.id}
+                    transaction={tx}
+                    theme={theme}
+                    L={L}
+                    lang={lang}
+                    author={author}
+                    canEdit={canEdit}
+                    onDelete={() => handleDelete(tx)}
+                    onEdit={() => { setEditingTx(tx); setModalVisible(true); }}
+                  />
+                );
+              })}
             </View>
           )}
           refreshControl={
@@ -471,6 +556,27 @@ function createStyles(t) {
     monthBtn: { padding: 6 },
     monthArrow: { color: 'rgba(255,255,255,0.7)', fontSize: 28, lineHeight: 30, fontWeight: '300' },
     monthLabel: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+    // Pills filtro hogar
+    pillsRow: {
+      flexDirection: 'row', gap: 8,
+      paddingHorizontal: 16, marginTop: 12, marginBottom: 4,
+    },
+    pill: {
+      paddingHorizontal: 14, paddingVertical: 6,
+      borderRadius: 18, backgroundColor: t.card,
+      borderWidth: 1, borderColor: t.cardBorder,
+    },
+    pillText: { fontSize: 13, fontWeight: '700' },
+
+    // Split personal/hogar dentro del balance card
+    splitRow: { flexDirection: 'row', marginBottom: 14, gap: 8 },
+    splitItem: {
+      flex: 1, padding: 10, borderRadius: 10,
+      backgroundColor: t.input, alignItems: 'center',
+    },
+    splitLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+    splitValue: { fontSize: 14, fontWeight: '800', marginTop: 2 },
 
     // Balance card
     balanceCard: {

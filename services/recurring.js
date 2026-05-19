@@ -1,21 +1,38 @@
 import { supabase } from './supabase';
 
-export async function getRecurring(userId) {
-  const { data, error } = await supabase
+// Devuelve recurring privados + del hogar (RLS filtra por visibilidad).
+export async function getRecurring(userId, householdId = null) {
+  let q = supabase
     .from('recurring_transactions')
     .select('*')
-    .eq('user_id', userId)
     .eq('active', true)
     .order('day_of_month', { ascending: true });
+
+  if (householdId) {
+    q = q.or(`user_id.eq.${userId},household_id.eq.${householdId}`);
+  } else {
+    q = q.eq('user_id', userId).is('household_id', null);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return data || [];
 }
 
-export async function addRecurring({ userId, amount, description, category, type, day_of_month }) {
+export async function addRecurring({ userId, amount, description, category, type, day_of_month, householdId = null }) {
   if (day_of_month < 1 || day_of_month > 28) throw new Error('day_of_month must be between 1 and 28');
+  const row = {
+    user_id: userId,
+    amount,
+    description,
+    category,
+    type,
+    day_of_month,
+    household_id: householdId || null,
+  };
   const { data, error } = await supabase
     .from('recurring_transactions')
-    .insert({ user_id: userId, amount, description, category, type, day_of_month })
+    .insert(row)
     .select()
     .single();
   if (error) throw error;
@@ -30,13 +47,18 @@ export async function deleteRecurring(id) {
   if (error) throw error;
 }
 
-export async function applyRecurring(userId) {
+// Corre las recurring del user (privadas) Y las del hogar al que pertenece.
+// Si el caller es miembro de un hogar, también ejecuta las reglas con household_id.
+// Cada tx generada tiene user_id = caller (autor = quien gatilla), y mantiene el
+// household_id si corresponde. El índice único uniq_recurring_per_month previene
+// duplicados cuando otro miembro ya ejecutó.
+export async function applyRecurring(userId, householdId = null) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const today = now.getDate();
 
-  const recurring = await getRecurring(userId);
+  const recurring = await getRecurring(userId, householdId);
   if (recurring.length === 0) return [];
 
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -60,20 +82,24 @@ export async function applyRecurring(userId) {
     if (existing && existing.length > 0) continue;
 
     const date = `${year}-${String(month).padStart(2, '0')}-${String(rec.day_of_month).padStart(2, '0')}`;
+    const insertRow = {
+      user_id: userId,
+      amount: rec.amount,
+      description: rec.description,
+      category: rec.category,
+      type: rec.type,
+      date,
+      recurring_id: rec.id,
+    };
+    if (rec.household_id) insertRow.household_id = rec.household_id;
+
     const { data: newTx, error } = await supabase
       .from('transactions')
-      .insert({
-        user_id: userId,
-        amount: rec.amount,
-        description: rec.description,
-        category: rec.category,
-        type: rec.type,
-        date,
-        recurring_id: rec.id,
-      })
+      .insert(insertRow)
       .select()
       .single();
 
+    // Si falla por unique constraint (otro miembro ya creó este mes), seguir.
     if (!error && newTx) created.push(newTx);
   }
 
