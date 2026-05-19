@@ -40,7 +40,7 @@ export default function SettingsModal({ visible, onClose, session }) {
         { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
         { text: lang === 'es' ? 'Salir' : 'Sign out', style: 'destructive', onPress: async () => {
           await clearAIInsightCache();
-          supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
         } },
       ],
     });
@@ -69,7 +69,7 @@ export default function SettingsModal({ visible, onClose, session }) {
       const { error } = await supabase.rpc('delete_user_account');
       if (error) throw error;
       await clearAIInsightCache();
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : 'Error al eliminar la cuenta');
       setDeleting(false);
