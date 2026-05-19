@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, Pressable, FlatList, StyleSheet,
   ActivityIndicator, RefreshControl, StatusBar, Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { getTransactions, deleteTransaction } from '../services/transactions';
@@ -116,18 +117,36 @@ const txStyle = StyleSheet.create({
 
 // ─── AI Insights card ─────────────────────────────────────────────────────────
 
+export const AI_INSIGHT_CACHE_PREFIX = 'spendly_insight_v1_';
+const AI_INSIGHT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 function AIInsightCard({ theme, userId, transactions, L, lang }) {
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
+  const hasTxs = transactions.length > 0;
 
   useEffect(() => {
-    if (!userId || transactions.length === 0) return;
+    if (!userId) return;
     const controller = new AbortController();
     loadInsight(controller.signal);
     return () => controller.abort();
-  }, [userId, transactions.length]);
+  }, [userId, lang, hasTxs]);
 
   async function loadInsight(signal) {
+    const cacheKey = `${AI_INSIGHT_CACHE_PREFIX}${userId}_${lang}`;
+    try {
+      const raw = await AsyncStorage.getItem(cacheKey);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached && cached.insight && Date.now() - cached.timestamp < AI_INSIGHT_TTL_MS) {
+          if (!signal.aborted) setInsight(cached.insight);
+          return;
+        }
+      }
+    } catch {}
+
+    if (transactions.length === 0) return;
+
     setLoading(true);
     try {
       const income   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
@@ -146,7 +165,11 @@ function AIInsightCard({ theme, userId, transactions, L, lang }) {
       );
       if (res.ok) {
         const data = await res.json();
+        if (signal.aborted) return;
         setInsight(data.insight);
+        try {
+          await AsyncStorage.setItem(cacheKey, JSON.stringify({ insight: data.insight, timestamp: Date.now() }));
+        } catch {}
       }
     } catch (e) {
       if (e.name !== 'AbortError') console.error('AIInsightCard fetch error:', e);

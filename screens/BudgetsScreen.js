@@ -215,6 +215,12 @@ export default function BudgetsScreen({ route }) {
               <Text style={[s.modalTitle, { color: theme.text }]}>
                 {editCat?.name} — {L.budgetAmount}
               </Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={[s.closeBtn, { color: theme.subtext }]}>✕</Text>
+              </TouchableOpacity>
             </View>
             <TextInput
               style={[s.modalInput, { borderBottomColor: theme.accent, color: theme.inputText }]}
@@ -291,6 +297,7 @@ function createStyles(t) {
     handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#e4ede8', marginBottom: 24 },
     modalTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 28 },
     modalTitle: { fontSize: 18, fontWeight: '800', flex: 1 },
+    closeBtn: { fontSize: 18, marginLeft: 12 },
     modalInput: {
       fontSize: 36, fontWeight: '800',
       borderBottomWidth: 2, paddingBottom: 8, marginBottom: 36,

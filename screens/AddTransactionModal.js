@@ -3,6 +3,7 @@ import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAlert } from '../components/AppAlert';
 import { addTransaction, updateTransaction } from '../services/transactions';
 import { addRecurring } from '../services/recurring';
@@ -33,6 +34,8 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
   const [aiSuggested, setAiSuggested]   = useState(false);
   const [isRecurring, setIsRecurring]   = useState(false);
   const [dayOfMonth, setDayOfMonth]     = useState(new Date().getDate());
+  const [txDate, setTxDate]             = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -42,6 +45,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       setDescription(editTransaction.description);
       setCategory(editTransaction.category);
       setAiSuggested(false);
+      setTxDate(new Date(editTransaction.date + 'T12:00:00'));
     } else {
       setType('expense');
       setAmount('');
@@ -50,7 +54,9 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       setAiSuggested(false);
       setIsRecurring(false);
       setDayOfMonth(new Date().getDate());
+      setTxDate(new Date());
     }
+    setShowDatePicker(false);
   }, [visible, editTransaction]);
 
   useEffect(() => {
@@ -91,9 +97,11 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
     setSaving(true);
     try {
       let result;
+      const dateStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
       if (isEditing) {
         result = await updateTransaction(editTransaction.id, {
           amount: parsed, description: description.trim(), type, category,
+          date: dateStr,
         });
       } else {
         let recurringId = null;
@@ -106,7 +114,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
         }
         result = await addTransaction({
           userId, amount: parsed, description: description.trim(), type, category,
-          date: new Date().toISOString().split('T')[0],
+          date: dateStr,
           recurring_id: recurringId,
         });
       }
@@ -209,14 +217,28 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
             </ScrollView>
 
             {/* Fecha */}
-            <View style={s.dateRow}>
+            <TouchableOpacity
+              style={s.dateRow}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.7}
+            >
               <Text style={{ fontSize: 16 }}>📅</Text>
-              <Text style={s.dateText}>
-                {isEditing
-                  ? editTransaction.date.split('-').reverse().join('/')
-                  : formatDate(new Date())}
-              </Text>
-            </View>
+              <Text style={s.dateText}>{formatDate(txDate)}</Text>
+              <Text style={[s.dateText, { marginLeft: 'auto', fontSize: 13 }]}>›</Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={txDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                onChange={(event, selected) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (event.type === 'dismissed') return;
+                  if (selected) setTxDate(selected);
+                }}
+              />
+            )}
 
             {/* Recurrente */}
             {!isEditing && (

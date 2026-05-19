@@ -2,11 +2,23 @@ import React, { useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Switch, Platform, Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { supabase } from '../services/supabase';
+import { AI_INSIGHT_CACHE_PREFIX } from './HomeScreen';
 
 const PRIVACY_URL = 'https://guidondor.github.io/Spendly/privacy.html';
+
+async function clearAIInsightCache() {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const toRemove = keys.filter(k => k.startsWith(AI_INSIGHT_CACHE_PREFIX));
+    if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove);
+  } catch (e) {
+    console.error('clearAIInsightCache error:', e);
+  }
+}
 
 export default function SettingsModal({ visible, onClose, session }) {
   const { theme, isDark, toggleTheme, lang, setLang } = useTheme();
@@ -26,7 +38,10 @@ export default function SettingsModal({ visible, onClose, session }) {
       message: lang === 'es' ? '¿Seguro que querés salir?' : 'Are you sure you want to sign out?',
       buttons: [
         { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-        { text: lang === 'es' ? 'Salir' : 'Sign out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+        { text: lang === 'es' ? 'Salir' : 'Sign out', style: 'destructive', onPress: async () => {
+          await clearAIInsightCache();
+          supabase.auth.signOut();
+        } },
       ],
     });
   }
@@ -53,6 +68,7 @@ export default function SettingsModal({ visible, onClose, session }) {
     try {
       const { error } = await supabase.rpc('delete_user_account');
       if (error) throw error;
+      await clearAIInsightCache();
       await supabase.auth.signOut();
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : 'Error al eliminar la cuenta');

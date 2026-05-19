@@ -116,7 +116,13 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
               <View style={[s.iconWrap, { backgroundColor: color + '22', marginRight: 12 }]}>
                 <Text style={{ fontSize: 22 }}>{goal.icon || '🎯'}</Text>
               </View>
-              <Text style={[s.modalTitle, { color: theme.text }]}>{goal.name}</Text>
+              <Text style={[s.modalTitle, { color: theme.text, flex: 1 }]}>{goal.name}</Text>
+              <TouchableOpacity
+                onPress={() => setUpdateModal(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={{ fontSize: 18, color: theme.subtext, marginLeft: 12 }}>✕</Text>
+              </TouchableOpacity>
             </View>
             <TextInput
               style={[s.modalInput, { borderBottomColor: theme.accent, color: theme.inputText }]}

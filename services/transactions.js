@@ -41,10 +41,12 @@ export async function deleteTransaction(id) {
   if (error) throw error;
 }
 
-export async function updateTransaction(id, { amount, description, type, category }) {
+export async function updateTransaction(id, { amount, description, type, category, date }) {
+  const patch = { amount, description, type, category };
+  if (date) patch.date = date;
   const { data, error } = await supabase
     .from('transactions')
-    .update({ amount, description, type, category })
+    .update(patch)
     .eq('id', id)
     .select()
     .single();
