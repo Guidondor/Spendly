@@ -8,6 +8,8 @@ import { useAlert } from '../components/AppAlert';
 import { useHousehold } from '../components/HouseholdProvider';
 import AuthorBadge from '../components/AuthorBadge';
 import { LABELS } from '../constants/i18n';
+
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.spendly.app';
 import {
   createHousehold,
   joinHousehold,
@@ -134,10 +136,27 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   async function handleShareCode() {
     if (!household?.invite_code) return;
     try {
-      await Share.share({
-        message: L.shareCodeMessage.replace('{code}', household.invite_code),
-      });
+      const message = L.shareCodeMessage
+        .replace('{code}', household.invite_code)
+        .replace('{url}', PLAY_STORE_URL);
+      await Share.share({ message });
     } catch {}
+  }
+
+  function handleRotateConfirm() {
+    if (!isOwner) return;
+    confirm({
+      title: L.rotateCodeTitle,
+      message: L.rotateCodeMsg,
+      buttons: [
+        { text: L.cancel, style: 'cancel' },
+        {
+          text: L.rotateCodeBtn,
+          style: 'destructive',
+          onPress: handleRotate,
+        },
+      ],
+    });
   }
 
   async function handleRemoveMember(member) {
@@ -224,19 +243,111 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
 
   function renderActiveHousehold() {
     const expired = household.invite_expires_at && new Date(household.invite_expires_at) < new Date();
+    const canRotate = isOwner && !expired;
+    const membersHeader = L.membersWithCount.replace('{n}', members.length);
+
     return (
       <>
-        <Text style={s.sectionLabel}>{L.groupSection}</Text>
-        <View style={s.card}>
-          <Text style={s.hhName}>{household.name}</Text>
-          <Text style={s.hhMeta}>
-            {members.length} {lang === 'es'
-              ? (members.length === 1 ? 'miembro' : 'miembros')
-              : (members.length === 1 ? 'member' : 'members')}
-          </Text>
+        {/* Card unificada: GRUPO + nombre + CÓDIGO + código + expiry + botón Compartir */}
+        <View style={s.unifiedCard}>
+          <Text style={s.unifiedLabel}>{L.groupSection}</Text>
+          <Text style={[s.unifiedTitle, { color: theme.text }]}>{household.name}</Text>
+
+          <Text style={s.codeLabel}>{L.inviteCode.toUpperCase()}</Text>
+          <TouchableOpacity
+            onPress={canRotate ? undefined : undefined /* tap libre — share via botón */}
+            onLongPress={canRotate ? handleRotateConfirm : undefined}
+            delayLongPress={600}
+            activeOpacity={canRotate ? 0.7 : 1}
+            disabled={submitting}
+            style={s.codeWrap}
+          >
+            <Text style={[s.code, expired && { color: theme.expense }]}>
+              {household.invite_code}
+            </Text>
+          </TouchableOpacity>
+          <Text style={s.codeExpiry}>{expiryLabel()}</Text>
+
+          <TouchableOpacity
+            style={[s.shareBtn, { backgroundColor: theme.accent }, submitting && { opacity: 0.6 }]}
+            onPress={expired ? handleRotate : handleShareCode}
+            disabled={submitting || (expired && !isOwner)}
+          >
+            {submitting && expired ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.shareBtnText}>
+                {expired ? L.newCodeBtn : (lang === 'es' ? 'Compartir' : 'Share')}
+              </Text>
+            )}
+          </TouchableOpacity>
         </View>
 
-        <Text style={s.sectionLabel}>{lang === 'es' ? 'MIEMBROS' : 'MEMBERS'}</Text>
+        {/* Settle-up: solo si hay >1 miembro y hay txs compartidas con balances */}
+        {settlement && settlement.transfers.length > 0 && (
+          <View style={[s.settleCard, { backgroundColor: theme.card, borderColor: theme.accent }]}>
+            <View style={s.settleHeaderRow}>
+              <View style={s.settleHeaderIconWrap}>
+                <Text style={s.settleHeaderIcon}>⚖️</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.settleTitle, { color: theme.text }]}>{L.settleUp}</Text>
+                <Text style={[s.settleSub, { color: theme.subtext }]}>
+                  {L.settleTotal}: {formatMoney(settlement.total)}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSettleDetail(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[s.settleToggle, { color: theme.accent }]}>
+                  {showSettleDetail ? L.settleHide : L.settleDetail}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {settlement.transfers.map((tr, i) => (
+              <View
+                key={`${tr.from.user_id}-${tr.to.user_id}-${i}`}
+                style={[s.transferRow, i === 0 && { borderTopWidth: 0 }]}
+              >
+                <AuthorBadge member={tr.from} size="sm" />
+                <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
+                  {tr.from.display_name}
+                </Text>
+                <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
+                <Text style={[s.transferAmount, { color: theme.accent }]}>{formatMoney(tr.amount)}</Text>
+                <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
+                <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
+                  {tr.to.display_name}
+                </Text>
+                <AuthorBadge member={tr.to} size="sm" />
+              </View>
+            ))}
+
+            {showSettleDetail && (
+              <View style={s.settleDetail}>
+                <Text style={[s.settleFairLine, { color: theme.subtext }]}>
+                  {L.settleFairShare.toUpperCase()} {formatMoney(settlement.fairShare)}
+                </Text>
+                {settlement.balances.map(b => (
+                  <View key={b.member.user_id} style={s.balanceRow}>
+                    <AuthorBadge member={b.member} size="sm" />
+                    <Text style={[s.balanceName, { color: theme.text }]} numberOfLines={1}>
+                      {b.member.display_name}
+                    </Text>
+                    <Text style={[s.balanceSpent, { color: theme.subtext }]}>{formatMoney(b.spent)}</Text>
+                    <Text style={[
+                      s.balanceDelta,
+                      { color: b.balance > 0 ? theme.income : (b.balance < 0 ? theme.expense : theme.subtext) },
+                    ]}>
+                      {b.balance > 0 ? '+' : b.balance < 0 ? '-' : ''}{formatMoney(Math.abs(b.balance))}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        <Text style={s.sectionLabel}>{membersHeader}</Text>
         <View style={s.card}>
           {members.map((m, idx) => {
             const canRemove = isOwner && currentUserId && m.user_id !== currentUserId;
@@ -247,11 +358,9 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
               >
                 <AuthorBadge member={m} size="md" />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.memberName}>
-                    {m.display_name}
-                    {m.user_id === household.owner_id && (
-                      <Text style={s.ownerTag}>  · {L.groupOwner}</Text>
-                    )}
+                  <Text style={s.memberName}>{m.display_name}</Text>
+                  <Text style={[s.ownerTag, { color: theme.subtext }]}>
+                    {m.user_id === household.owner_id ? L.groupOwner : L.groupMember}
                   </Text>
                 </View>
                 {canRemove && (
@@ -269,102 +378,12 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
           })}
         </View>
 
-        {/* Settle-up: solo si hay >1 miembro y hay txs compartidas con balances */}
-        {settlement && settlement.transfers.length > 0 && (
-          <>
-            <Text style={s.sectionLabel}>⚖️ {L.settleUp.toUpperCase()}</Text>
-            <View style={s.card}>
-              <View style={s.settleHeader}>
-                <Text style={[s.settleHeaderLabel, { color: theme.subtext }]}>{L.settleTotal}</Text>
-                <Text style={s.settleHeaderValue}>{formatMoney(settlement.total)}</Text>
-              </View>
-              {settlement.transfers.map((tr, i) => (
-                <View key={`${tr.from.user_id}-${tr.to.user_id}-${i}`} style={s.transferRow}>
-                  <AuthorBadge member={tr.from} size="sm" />
-                  <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
-                    {tr.from.display_name}
-                  </Text>
-                  <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
-                  <Text style={[s.transferAmount, { color: theme.accent }]}>{formatMoney(tr.amount)}</Text>
-                  <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
-                  <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
-                    {tr.to.display_name}
-                  </Text>
-                  <AuthorBadge member={tr.to} size="sm" />
-                </View>
-              ))}
-              <TouchableOpacity
-                onPress={() => setShowSettleDetail(v => !v)}
-                style={s.settleDetailBtn}
-              >
-                <Text style={[s.settleDetailBtnText, { color: theme.accent }]}>
-                  {showSettleDetail ? L.settleHide : L.settleDetail}
-                </Text>
-              </TouchableOpacity>
-              {showSettleDetail && (
-                <View style={s.settleDetail}>
-                  <Text style={[s.settleDetailLine, { color: theme.subtext }]}>
-                    {L.settleFairShare}: <Text style={{ color: theme.text, fontWeight: '700' }}>
-                      {formatMoney(settlement.fairShare)}
-                    </Text>
-                  </Text>
-                  {settlement.balances.map(b => (
-                    <View key={b.member.user_id} style={s.balanceRow}>
-                      <AuthorBadge member={b.member} size="sm" />
-                      <Text style={[s.balanceName, { color: theme.text }]} numberOfLines={1}>
-                        {b.member.display_name}
-                      </Text>
-                      <Text style={[s.balanceSpent, { color: theme.subtext }]}>{formatMoney(b.spent)}</Text>
-                      <Text style={[
-                        s.balanceDelta,
-                        { color: b.balance > 0 ? theme.income : (b.balance < 0 ? theme.expense : theme.subtext) },
-                      ]}>
-                        {b.balance > 0 ? '+' : b.balance < 0 ? '-' : ''}{formatMoney(Math.abs(b.balance))}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          </>
-        )}
-
-        <Text style={s.sectionLabel}>{L.inviteCode.toUpperCase()}</Text>
-        <View style={s.card}>
-          <Text style={[s.code, expired && { color: theme.expense }]}>{household.invite_code}</Text>
-          <Text style={s.codeMeta}>{expiryLabel()}</Text>
-          <View style={s.codeBtnRow}>
-            <TouchableOpacity
-              style={[s.actionBtn, { backgroundColor: theme.accent }]}
-              onPress={handleShareCode}
-              disabled={submitting || expired}
-            >
-              <Text style={s.actionBtnText}>{lang === 'es' ? 'Compartir' : 'Share'}</Text>
-            </TouchableOpacity>
-            {isOwner && (
-              <TouchableOpacity
-                style={[s.actionBtn, { backgroundColor: theme.input, borderWidth: 1, borderColor: theme.inputBorder }]}
-                onPress={handleRotate}
-                disabled={submitting}
-              >
-                {submitting ? <ActivityIndicator color={theme.text} /> : (
-                  <Text style={[s.actionBtnText, { color: theme.text }]}>
-                    {expired
-                      ? (lang === 'es' ? 'Generar nuevo' : 'Generate new')
-                      : (lang === 'es' ? 'Rotar' : 'Rotate')}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
         <TouchableOpacity
           style={[s.leaveBtn, submitting && { opacity: 0.5 }]}
           onPress={handleLeave}
           disabled={submitting}
         >
-          <Text style={s.leaveBtnText}>🚪  {L.leaveGroup}</Text>
+          <Text style={s.leaveBtnText}>{L.leaveGroup}</Text>
         </TouchableOpacity>
 
         {isOwner && (
@@ -559,74 +578,112 @@ function createStyles(t) {
       padding: 16, marginBottom: 20,
       borderWidth: t.dark ? 1 : 0, borderColor: t.cardBorder,
     },
-    hhName: { fontSize: 18, fontWeight: '800', color: t.text },
-    hhMeta: { fontSize: 13, color: t.subtext, marginTop: 4 },
+    // Card unificada GRUPO + CÓDIGO
+    unifiedCard: {
+      backgroundColor: t.card, borderRadius: 16,
+      paddingVertical: 22, paddingHorizontal: 18,
+      marginBottom: 18, alignItems: 'center',
+      borderWidth: t.dark ? 1 : 0, borderColor: t.cardBorder,
+    },
+    unifiedLabel: {
+      fontSize: 11, fontWeight: '700', color: t.subtext,
+      letterSpacing: 1, marginBottom: 4,
+    },
+    unifiedTitle: {
+      fontSize: 22, fontWeight: '800', marginBottom: 18,
+    },
+    codeLabel: {
+      fontSize: 10, fontWeight: '700', color: t.subtext,
+      letterSpacing: 0.8, marginBottom: 8,
+    },
+    codeWrap: {
+      paddingVertical: 8, paddingHorizontal: 14,
+      borderRadius: 10,
+    },
+    code: {
+      fontSize: 28, fontWeight: '900', textAlign: 'center',
+      color: t.accent, letterSpacing: 4,
+      fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    },
+    codeExpiry: { fontSize: 11, color: t.subtext, marginTop: 4, marginBottom: 16 },
+    shareBtn: {
+      alignSelf: 'stretch', paddingVertical: 12, borderRadius: 12,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    shareBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 
     memberRow: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingVertical: 10,
     },
     memberName: { fontSize: 15, fontWeight: '700', color: t.text },
-    ownerTag: { fontSize: 12, color: t.subtext, fontWeight: '600' },
-
-    code: { fontSize: 32, fontWeight: '900', textAlign: 'center', color: t.accent, letterSpacing: 4, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }) },
-    codeMeta: { fontSize: 12, color: t.subtext, textAlign: 'center', marginTop: 6 },
-    codeBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
-    actionBtn: {
-      flex: 1, paddingVertical: 12, borderRadius: 12,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+    ownerTag: { fontSize: 12, fontWeight: '500', marginTop: 1 },
 
     leaveBtn: {
       borderRadius: 16, paddingVertical: 14, alignItems: 'center',
-      backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca',
+      backgroundColor: 'rgba(225,29,72,0.08)',
+      borderWidth: 1, borderColor: 'transparent',
       marginTop: 8,
     },
     leaveBtnText: { color: '#e11d48', fontSize: 15, fontWeight: '700' },
     deleteGroupBtn: {
       borderRadius: 16, paddingVertical: 14, alignItems: 'center',
-      backgroundColor: '#e11d48',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5, borderColor: '#e11d48',
       marginTop: 10,
     },
-    deleteGroupBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    deleteGroupBtnText: { color: '#e11d48', fontSize: 15, fontWeight: '700' },
     removeMemberBtn: {
-      width: 32, height: 32, borderRadius: 8,
+      width: 36, height: 36, borderRadius: 10,
       alignItems: 'center', justifyContent: 'center',
+      backgroundColor: t.input,
     },
     removeMemberIcon: { fontSize: 14 },
 
-    // Settle-up
-    settleHeader: {
-      flexDirection: 'row', justifyContent: 'space-between',
-      alignItems: 'center', marginBottom: 12,
+    // Settle-up (card destacada con borde verde)
+    settleCard: {
+      borderRadius: 16,
+      padding: 16, marginBottom: 20,
+      borderWidth: 1.5,
     },
-    settleHeaderLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-    settleHeaderValue: { fontSize: 18, fontWeight: '800', color: t.text },
+    settleHeaderRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      marginBottom: 14,
+    },
+    settleHeaderIconWrap: {
+      width: 38, height: 38, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: t.input,
+    },
+    settleHeaderIcon: { fontSize: 18 },
+    settleTitle: { fontSize: 15, fontWeight: '800' },
+    settleSub: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+    settleToggle: { fontSize: 13, fontWeight: '700' },
+
     transferRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      paddingVertical: 8,
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingVertical: 10,
       borderTopWidth: 1, borderTopColor: t.divider,
     },
     transferName: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
-    transferArrow: { fontSize: 12, fontWeight: '700' },
+    transferArrow: { fontSize: 13, fontWeight: '700' },
     transferAmount: { fontSize: 13, fontWeight: '800' },
-    settleDetailBtn: {
-      marginTop: 12, paddingVertical: 6, alignItems: 'center',
-    },
-    settleDetailBtnText: { fontSize: 13, fontWeight: '700' },
+
     settleDetail: {
-      marginTop: 8, paddingTop: 12,
+      marginTop: 12, paddingTop: 14,
       borderTopWidth: 1, borderTopColor: t.divider,
     },
-    settleDetailLine: { fontSize: 13, marginBottom: 10 },
+    settleFairLine: {
+      fontSize: 11, fontWeight: '700', letterSpacing: 0.8,
+      marginBottom: 10,
+    },
     balanceRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
+      flexDirection: 'row', alignItems: 'center', gap: 10,
       paddingVertical: 6,
     },
-    balanceName: { flex: 1, fontSize: 13, fontWeight: '600' },
-    balanceSpent: { fontSize: 12, fontWeight: '600' },
-    balanceDelta: { fontSize: 13, fontWeight: '800', minWidth: 70, textAlign: 'right' },
+    balanceName: { flex: 1, fontSize: 14, fontWeight: '700' },
+    balanceSpent: { fontSize: 13, fontWeight: '600' },
+    balanceDelta: { fontSize: 14, fontWeight: '800', minWidth: 90, textAlign: 'right' },
 
     helpText: { fontSize: 14, color: t.subtext, marginBottom: 20, lineHeight: 20 },
     bigBtn: {
