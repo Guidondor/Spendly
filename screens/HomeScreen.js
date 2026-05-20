@@ -14,6 +14,7 @@ import AddTransactionModal from './AddTransactionModal';
 import HistoryModal from './HistoryModal';
 import RecurringModal from './RecurringModal';
 import SettingsModal from './SettingsModal';
+import HouseholdModal from './HouseholdModal';
 import { applyRecurring, deleteRecurring } from '../services/recurring';
 import { formatMoney } from '../services/format';
 import { useAlert } from '../components/AppAlert';
@@ -252,6 +253,7 @@ export default function HomeScreen({ session }) {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [recurringVisible, setRecurringVisible] = useState(false);
   const [settingsVisible, setSettingsVisible]   = useState(false);
+  const [householdVisible, setHouseholdVisible] = useState(false);
   const [editingTx, setEditingTx]           = useState(null);
   const [scopeFilter, setScopeFilter]       = useState('all'); // 'all' | 'mine' | 'household'
 
@@ -538,9 +540,21 @@ export default function HomeScreen({ session }) {
           <Text style={s.headerTitle}>Spendly</Text>
         </View>
 
-        <TouchableOpacity style={s.headerIconBtn} onPress={() => setHistoryVisible(true)}>
-          <Text style={s.headerIconText}>📅</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {household && (
+            <TouchableOpacity
+              style={[s.headerIconBtn, { backgroundColor: 'rgba(139,92,246,0.25)' }]}
+              onPress={() => setHouseholdVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.headerIconText}>👥</Text>
+              <View style={s.groupBtnDot} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={s.headerIconBtn} onPress={() => setHistoryVisible(true)}>
+            <Text style={s.headerIconText}>📅</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Month selector */}
@@ -645,6 +659,11 @@ export default function HomeScreen({ session }) {
         onClose={() => setSettingsVisible(false)}
         session={session}
       />
+      <HouseholdModal
+        visible={householdVisible}
+        currentUserId={userId}
+        onClose={() => setHouseholdVisible(false)}
+      />
     </View>
   );
 }
@@ -665,6 +684,12 @@ function createStyles(t) {
       alignItems: 'center', justifyContent: 'center',
     },
     headerIconText: { fontSize: 18 },
+    groupBtnDot: {
+      position: 'absolute', top: 6, right: 6,
+      width: 8, height: 8, borderRadius: 4,
+      backgroundColor: '#22c55e',
+      borderWidth: 1.5, borderColor: t.header,
+    },
     headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     headerLeaf: { fontSize: 20 },
     headerTitle: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
