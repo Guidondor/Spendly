@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Share,
@@ -13,8 +13,13 @@ import {
   joinHousehold,
   rotateInviteCode,
   leaveHousehold,
+  removeHouseholdMember,
+  deleteHousehold,
+  computeSettlement,
   MEMBER_COLORS,
 } from '../services/households';
+import { getTransactions } from '../services/transactions';
+import { formatMoney } from '../services/format';
 
 function buildErrorMap(L) {
   return {
@@ -52,6 +57,28 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   const [code, setCode] = useState('');
   const [joinDisplay, setJoinDisplay] = useState(defaultName);
   const [joinColor, setJoinColor] = useState(MEMBER_COLORS[1]);
+
+  // Settle-up: txs del mes en curso del grupo
+  const [monthTxs, setMonthTxs] = useState([]);
+  const [showSettleDetail, setShowSettleDetail] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !household?.id || !currentUserId) {
+      setMonthTxs([]);
+      return;
+    }
+    let cancelled = false;
+    const now = new Date();
+    getTransactions(currentUserId, now.getFullYear(), now.getMonth() + 1, household.id)
+      .then(txs => { if (!cancelled) setMonthTxs(txs); })
+      .catch(e => { if (__DEV__) console.warn('[HouseholdModal] load txs:', e?.message || e); });
+    return () => { cancelled = true; };
+  }, [visible, household?.id, currentUserId]);
+
+  const settlement = useMemo(
+    () => household?.id ? computeSettlement(monthTxs, members, household.id) : null,
+    [monthTxs, members, household?.id]
+  );
 
   const s = useMemo(() => createStyles(theme), [theme]);
 
@@ -113,6 +140,54 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
     } catch {}
   }
 
+  async function handleRemoveMember(member) {
+    confirm({
+      title: L.removeMember,
+      message: L.removeMemberConfirm.replace('{name}', member.display_name),
+      buttons: [
+        { text: L.cancel, style: 'cancel' },
+        {
+          text: L.removeMemberOk, style: 'destructive',
+          onPress: async () => {
+            setSubmitting(true);
+            try {
+              await removeHouseholdMember(member.user_id);
+              await reload();
+            } catch (e) {
+              alert('Error', humanizeError(e.message, L));
+            } finally {
+              setSubmitting(false);
+            }
+          },
+        },
+      ],
+    });
+  }
+
+  async function handleDeleteGroup() {
+    confirm({
+      title: L.deleteGroup,
+      message: L.deleteGroupConfirm,
+      buttons: [
+        { text: L.cancel, style: 'cancel' },
+        {
+          text: L.deleteGroup, style: 'destructive',
+          onPress: async () => {
+            setSubmitting(true);
+            try {
+              await deleteHousehold();
+              await reload();
+              close();
+            } catch (e) {
+              alert('Error', humanizeError(e.message, L));
+              setSubmitting(false);
+            }
+          },
+        },
+      ],
+    });
+  }
+
   async function handleLeave() {
     confirm({
       title: L.leaveGroupConfirmTitle,
@@ -163,23 +238,96 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
 
         <Text style={s.sectionLabel}>{lang === 'es' ? 'MIEMBROS' : 'MEMBERS'}</Text>
         <View style={s.card}>
-          {members.map((m, idx) => (
-            <View
-              key={m.user_id}
-              style={[s.memberRow, idx > 0 && { borderTopWidth: 1, borderTopColor: theme.divider }]}
-            >
-              <AuthorBadge member={m} size="md" />
-              <View style={{ flex: 1 }}>
-                <Text style={s.memberName}>
-                  {m.display_name}
-                  {m.user_id === household.owner_id && (
-                    <Text style={s.ownerTag}>  · {L.groupOwner}</Text>
-                  )}
-                </Text>
+          {members.map((m, idx) => {
+            const canRemove = isOwner && currentUserId && m.user_id !== currentUserId;
+            return (
+              <View
+                key={m.user_id}
+                style={[s.memberRow, idx > 0 && { borderTopWidth: 1, borderTopColor: theme.divider }]}
+              >
+                <AuthorBadge member={m} size="md" />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.memberName}>
+                    {m.display_name}
+                    {m.user_id === household.owner_id && (
+                      <Text style={s.ownerTag}>  · {L.groupOwner}</Text>
+                    )}
+                  </Text>
+                </View>
+                {canRemove && (
+                  <TouchableOpacity
+                    onPress={() => handleRemoveMember(m)}
+                    disabled={submitting}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={s.removeMemberBtn}
+                  >
+                    <Text style={s.removeMemberIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
+
+        {/* Settle-up: solo si hay >1 miembro y hay txs compartidas con balances */}
+        {settlement && settlement.transfers.length > 0 && (
+          <>
+            <Text style={s.sectionLabel}>⚖️ {L.settleUp.toUpperCase()}</Text>
+            <View style={s.card}>
+              <View style={s.settleHeader}>
+                <Text style={[s.settleHeaderLabel, { color: theme.subtext }]}>{L.settleTotal}</Text>
+                <Text style={s.settleHeaderValue}>{formatMoney(settlement.total)}</Text>
+              </View>
+              {settlement.transfers.map((tr, i) => (
+                <View key={`${tr.from.user_id}-${tr.to.user_id}-${i}`} style={s.transferRow}>
+                  <AuthorBadge member={tr.from} size="sm" />
+                  <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
+                    {tr.from.display_name}
+                  </Text>
+                  <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
+                  <Text style={[s.transferAmount, { color: theme.accent }]}>{formatMoney(tr.amount)}</Text>
+                  <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
+                  <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
+                    {tr.to.display_name}
+                  </Text>
+                  <AuthorBadge member={tr.to} size="sm" />
+                </View>
+              ))}
+              <TouchableOpacity
+                onPress={() => setShowSettleDetail(v => !v)}
+                style={s.settleDetailBtn}
+              >
+                <Text style={[s.settleDetailBtnText, { color: theme.accent }]}>
+                  {showSettleDetail ? L.settleHide : L.settleDetail}
+                </Text>
+              </TouchableOpacity>
+              {showSettleDetail && (
+                <View style={s.settleDetail}>
+                  <Text style={[s.settleDetailLine, { color: theme.subtext }]}>
+                    {L.settleFairShare}: <Text style={{ color: theme.text, fontWeight: '700' }}>
+                      {formatMoney(settlement.fairShare)}
+                    </Text>
+                  </Text>
+                  {settlement.balances.map(b => (
+                    <View key={b.member.user_id} style={s.balanceRow}>
+                      <AuthorBadge member={b.member} size="sm" />
+                      <Text style={[s.balanceName, { color: theme.text }]} numberOfLines={1}>
+                        {b.member.display_name}
+                      </Text>
+                      <Text style={[s.balanceSpent, { color: theme.subtext }]}>{formatMoney(b.spent)}</Text>
+                      <Text style={[
+                        s.balanceDelta,
+                        { color: b.balance > 0 ? theme.income : (b.balance < 0 ? theme.expense : theme.subtext) },
+                      ]}>
+                        {b.balance > 0 ? '+' : b.balance < 0 ? '-' : ''}{formatMoney(Math.abs(b.balance))}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </>
+        )}
 
         <Text style={s.sectionLabel}>{L.inviteCode.toUpperCase()}</Text>
         <View style={s.card}>
@@ -218,6 +366,16 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
         >
           <Text style={s.leaveBtnText}>🚪  {L.leaveGroup}</Text>
         </TouchableOpacity>
+
+        {isOwner && (
+          <TouchableOpacity
+            style={[s.deleteGroupBtn, submitting && { opacity: 0.5 }]}
+            onPress={handleDeleteGroup}
+            disabled={submitting}
+          >
+            <Text style={s.deleteGroupBtnText}>🗑️  {L.deleteGroup}</Text>
+          </TouchableOpacity>
+        )}
       </>
     );
   }
@@ -426,6 +584,49 @@ function createStyles(t) {
       marginTop: 8,
     },
     leaveBtnText: { color: '#e11d48', fontSize: 15, fontWeight: '700' },
+    deleteGroupBtn: {
+      borderRadius: 16, paddingVertical: 14, alignItems: 'center',
+      backgroundColor: '#e11d48',
+      marginTop: 10,
+    },
+    deleteGroupBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    removeMemberBtn: {
+      width: 32, height: 32, borderRadius: 8,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    removeMemberIcon: { fontSize: 14 },
+
+    // Settle-up
+    settleHeader: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      alignItems: 'center', marginBottom: 12,
+    },
+    settleHeaderLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+    settleHeaderValue: { fontSize: 18, fontWeight: '800', color: t.text },
+    transferRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingVertical: 8,
+      borderTopWidth: 1, borderTopColor: t.divider,
+    },
+    transferName: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+    transferArrow: { fontSize: 12, fontWeight: '700' },
+    transferAmount: { fontSize: 13, fontWeight: '800' },
+    settleDetailBtn: {
+      marginTop: 12, paddingVertical: 6, alignItems: 'center',
+    },
+    settleDetailBtnText: { fontSize: 13, fontWeight: '700' },
+    settleDetail: {
+      marginTop: 8, paddingTop: 12,
+      borderTopWidth: 1, borderTopColor: t.divider,
+    },
+    settleDetailLine: { fontSize: 13, marginBottom: 10 },
+    balanceRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingVertical: 6,
+    },
+    balanceName: { flex: 1, fontSize: 13, fontWeight: '600' },
+    balanceSpent: { fontSize: 12, fontWeight: '600' },
+    balanceDelta: { fontSize: 13, fontWeight: '800', minWidth: 70, textAlign: 'right' },
 
     helpText: { fontSize: 14, color: t.subtext, marginBottom: 20, lineHeight: 20 },
     bigBtn: {
