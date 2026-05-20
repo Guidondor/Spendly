@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { withTimeout } from './withTimeout';
 
 // Devuelve metas privadas + del hogar (RLS filtra por visibilidad).
 export async function getGoals(userId, householdId = null) {
@@ -13,7 +14,7 @@ export async function getGoals(userId, householdId = null) {
     q = q.eq('user_id', userId).is('household_id', null);
   }
 
-  const { data, error } = await q;
+  const { data, error } = await withTimeout(q);
   if (error) throw error;
   return data ?? [];
 }
@@ -28,27 +29,33 @@ export async function addGoal({ userId, name, icon, color, target, householdId =
     saved: 0,
     household_id: householdId || null,
   };
-  const { data, error } = await supabase
-    .from('goals')
-    .insert([row])
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('goals')
+      .insert([row])
+      .select()
+      .single()
+  );
   if (error) throw error;
   return data;
 }
 
 export async function updateGoalSaved(id, saved) {
-  const { data, error } = await supabase
-    .from('goals')
-    .update({ saved })
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('goals')
+      .update({ saved })
+      .eq('id', id)
+      .select()
+      .single()
+  );
   if (error) throw error;
   return data;
 }
 
 export async function deleteGoal(id) {
-  const { error } = await supabase.from('goals').delete().eq('id', id);
+  const { error } = await withTimeout(
+    supabase.from('goals').delete().eq('id', id)
+  );
   if (error) throw error;
 }

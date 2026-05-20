@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { withTimeout } from './withTimeout';
 
 export async function getTransactions(userId, year, month, householdId = null) {
   const mm = String(month).padStart(2, '0');
@@ -22,7 +23,7 @@ export async function getTransactions(userId, year, month, householdId = null) {
     q = q.eq('user_id', userId).is('household_id', null);
   }
 
-  const { data, error } = await q;
+  const { data, error } = await withTimeout(q);
   if (error) throw error;
   return data ?? [];
 }
@@ -31,21 +32,25 @@ export async function addTransaction({ userId, amount, description, type, catego
   const row = { user_id: userId, amount, description, type, category, date };
   if (recurring_id) row.recurring_id = recurring_id;
   if (household_id) row.household_id = household_id;
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert([row])
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('transactions')
+      .insert([row])
+      .select()
+      .single()
+  );
 
   if (error) throw error;
   return data;
 }
 
 export async function deleteTransaction(id) {
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id);
+  const { error } = await withTimeout(
+    supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+  );
 
   if (error) throw error;
 }
@@ -54,12 +59,14 @@ export async function updateTransaction(id, { amount, description, type, categor
   const patch = { amount, description, type, category };
   if (date) patch.date = date;
   if (household_id !== undefined) patch.household_id = household_id;
-  const { data, error } = await supabase
-    .from('transactions')
-    .update(patch)
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('transactions')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .single()
+  );
 
   if (error) throw error;
   return data;
@@ -82,7 +89,7 @@ export async function getTransactionsByYear(userId, year, householdId = null) {
     q = q.eq('user_id', userId).is('household_id', null);
   }
 
-  const { data, error } = await q;
+  const { data, error } = await withTimeout(q);
   if (error) throw error;
   return data ?? [];
 }

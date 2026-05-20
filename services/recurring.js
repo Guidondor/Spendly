@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { withTimeout } from './withTimeout';
 
 // Devuelve recurring privados + del hogar (RLS filtra por visibilidad).
 export async function getRecurring(userId, householdId = null) {
@@ -14,7 +15,7 @@ export async function getRecurring(userId, householdId = null) {
     q = q.eq('user_id', userId).is('household_id', null);
   }
 
-  const { data, error } = await q;
+  const { data, error } = await withTimeout(q);
   if (error) throw error;
   return data || [];
 }
@@ -30,20 +31,24 @@ export async function addRecurring({ userId, amount, description, category, type
     day_of_month,
     household_id: householdId || null,
   };
-  const { data, error } = await supabase
-    .from('recurring_transactions')
-    .insert(row)
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('recurring_transactions')
+      .insert(row)
+      .select()
+      .single()
+  );
   if (error) throw error;
   return data;
 }
 
 export async function deleteRecurring(id) {
-  const { error } = await supabase
-    .from('recurring_transactions')
-    .delete()
-    .eq('id', id);
+  const { error } = await withTimeout(
+    supabase
+      .from('recurring_transactions')
+      .delete()
+      .eq('id', id)
+  );
   if (error) throw error;
 }
 
@@ -71,36 +76,53 @@ export async function applyRecurring(userId, householdId = null) {
   for (const rec of recurring) {
     if (today < rec.day_of_month) continue;
 
-    const { data: existing } = await supabase
-      .from('transactions')
-      .select('id')
-      .eq('recurring_id', rec.id)
-      .gte('date', monthStart)
-      .lt('date', monthEnd)
-      .limit(1);
+    try {
+      const { data: existing } = await withTimeout(
+        supabase
+          .from('transactions')
+          .select('id')
+          .eq('recurring_id', rec.id)
+          .gte('date', monthStart)
+          .lt('date', monthEnd)
+          .limit(1)
+      );
 
-    if (existing && existing.length > 0) continue;
+      if (existing && existing.length > 0) continue;
 
-    const date = `${year}-${String(month).padStart(2, '0')}-${String(rec.day_of_month).padStart(2, '0')}`;
-    const insertRow = {
-      user_id: userId,
-      amount: rec.amount,
-      description: rec.description,
-      category: rec.category,
-      type: rec.type,
-      date,
-      recurring_id: rec.id,
-    };
-    if (rec.household_id) insertRow.household_id = rec.household_id;
+      const date = `${year}-${String(month).padStart(2, '0')}-${String(rec.day_of_month).padStart(2, '0')}`;
+      const insertRow = {
+        user_id: userId,
+        amount: rec.amount,
+        description: rec.description,
+        category: rec.category,
+        type: rec.type,
+        date,
+        recurring_id: rec.id,
+      };
+      if (rec.household_id) insertRow.household_id = rec.household_id;
 
-    const { data: newTx, error } = await supabase
-      .from('transactions')
-      .insert(insertRow)
-      .select()
-      .single();
+      const { data: newTx, error } = await withTimeout(
+        supabase
+          .from('transactions')
+          .insert(insertRow)
+          .select()
+          .single()
+      );
 
-    // Si falla por unique constraint (otro miembro ya creó este mes), seguir.
-    if (!error && newTx) created.push(newTx);
+      if (newTx) {
+        created.push(newTx);
+      } else if (error) {
+        // Postgres 23505 = unique_violation (otro miembro del hogar ya creó esta
+        // tx para el mes). Es esperado y se ignora. Cualquier otro error se
+        // loguea para no perder señales de RLS/red/schema.
+        if (error.code !== '23505') {
+          console.warn('[applyRecurring] insert failed for rec', rec.id, error);
+        }
+      }
+    } catch (e) {
+      // Timeout o error de red — no abortar el resto del loop.
+      console.warn('[applyRecurring] iteration failed for rec', rec.id, e?.message || e);
+    }
   }
 
   return created;

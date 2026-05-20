@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import Svg, { Path, G, Rect } from 'react-native-svg';
 import { supabase } from '../services/supabase';
+import { withTimeout } from '../services/withTimeout';
 import { LABELS } from '../constants/i18n';
 
 const lang = 'es';
@@ -36,9 +37,18 @@ export default function LoginScreen({ navigation }) {
     if (!email || !password) { setError(L.requiredFields); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError(L.invalidEmail); return; }
     setLoading(true);
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (authError) setError(authError.message);
+    try {
+      const { error: authError } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        15000
+      );
+      if (authError) setError(authError.message);
+    } catch (e) {
+      if (__DEV__) console.warn('[Login] signIn failed:', e?.message || e);
+      setError(L.googleError || L.networkError || 'No se pudo iniciar sesión. Intentá de nuevo.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleGoogleLogin() {
@@ -51,11 +61,18 @@ export default function LoginScreen({ navigation }) {
       const { makeRedirectUri } = require('expo-auth-session');
       const redirectUri = makeRedirectUri({ scheme: 'spendly' });
       linkSub = Linking.addEventListener('url', ({ url }) => { urlFromLink = url; });
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: redirectUri, skipBrowserRedirect: true },
-      });
-      if (oauthError || !data.url) { setError(oauthError?.message ?? 'Error con Google'); return; }
+      const { data, error: oauthError } = await withTimeout(
+        supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: redirectUri, skipBrowserRedirect: true },
+        }),
+        15000
+      );
+      if (oauthError || !data.url) {
+        if (__DEV__) console.warn('[Login] signInWithOAuth:', oauthError);
+        setError(L.googleError || 'No se pudo iniciar sesión con Google.');
+        return;
+      }
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
       let url = result.url;
       if (!url) {
@@ -63,17 +80,25 @@ export default function LoginScreen({ navigation }) {
         url = urlFromLink;
       }
       if (!url) {
-        const { data: sd } = await supabase.auth.getSession();
+        const { data: sd } = await withTimeout(supabase.auth.getSession(), 10000);
         if (sd?.session) return;
-        setError('Google result=' + result.type + ' (sin url)');
+        if (__DEV__) console.warn('[Login] Google: no url, result.type=', result.type);
+        setError(L.googleError || 'No se pudo iniciar sesión con Google.');
         return;
       }
       const codeMatch = /[?&]code=([^&]+)/.exec(url);
       if (codeMatch) {
         const code = decodeURIComponent(codeMatch[1]);
-        const { data: exData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) { setError('Exchange: ' + exchangeError.message); return; }
-        if (!exData?.session) setError('Exchange ok pero sin sesión');
+        const { data: exData, error: exchangeError } = await withTimeout(
+          supabase.auth.exchangeCodeForSession(code),
+          15000
+        );
+        if (exchangeError) {
+          if (__DEV__) console.warn('[Login] exchangeCodeForSession:', exchangeError);
+          setError(L.googleError || 'No se pudo completar el inicio de sesión.');
+          return;
+        }
+        if (!exData?.session && __DEV__) console.warn('[Login] exchange ok but no session');
         return;
       }
       const hashIdx = url.indexOf('#');
@@ -82,15 +107,24 @@ export default function LoginScreen({ navigation }) {
         const access_token = params.get('access_token');
         const refresh_token = params.get('refresh_token');
         if (access_token && refresh_token) {
-          const { data: sData, error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (setErr) { setError('SetSession: ' + setErr.message); return; }
-          if (!sData?.session) setError('SetSession sin sesión');
+          const { data: sData, error: setErr } = await withTimeout(
+            supabase.auth.setSession({ access_token, refresh_token }),
+            10000
+          );
+          if (setErr) {
+            if (__DEV__) console.warn('[Login] setSession:', setErr);
+            setError(L.googleError || 'No se pudo completar el inicio de sesión.');
+            return;
+          }
+          if (!sData?.session && __DEV__) console.warn('[Login] setSession ok but no session');
           return;
         }
       }
-      setError('Sin code/token en URL: ' + url.slice(0, 80));
+      if (__DEV__) console.warn('[Login] no code/token in url', url.slice(0, 80));
+      setError(L.googleError || 'No se pudo completar el inicio de sesión.');
     } catch (err) {
-      setError('Google: ' + (err?.message ?? 'desconocido'));
+      if (__DEV__) console.warn('[Login] handleGoogleLogin error:', err?.message || err);
+      setError(L.googleError || 'No se pudo iniciar sesión con Google.');
     } finally {
       linkSub?.remove();
       setLoading(false);

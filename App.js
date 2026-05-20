@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View, Platform } from 'react-native';
+import { ActivityIndicator, AppState, View, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,6 +9,7 @@ import Svg, { Path, Circle, Polyline, Line } from 'react-native-svg';
 import * as NavigationBar from 'expo-navigation-bar';
 
 import { supabase } from './services/supabase';
+import { withTimeout } from './services/withTimeout';
 import { ThemeProvider, useTheme } from './services/theme';
 import { AlertProvider } from './components/AppAlert';
 import { HouseholdProvider } from './components/HouseholdProvider';
@@ -143,10 +144,38 @@ function RootNavigator() {
   const [onboardingDone, setOnboardingDone] = useState(undefined);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
-    AsyncStorage.getItem('onboarding_done').then(val => setOnboardingDone(val === '1'));
-    return () => subscription.unsubscribe();
+    let mounted = true;
+
+    withTimeout(supabase.auth.getSession(), 12000)
+      .then(({ data: { session } }) => { if (mounted) setSession(session ?? null); })
+      .catch(e => {
+        if (__DEV__) console.warn('[Auth] getSession failed:', e?.message || e);
+        if (mounted) setSession(null);
+      });
+
+    // Callback SÍNCRONO — solo actualiza state, no hace queries.
+    // Cualquier limpieza cross-user vive en HouseholdProvider/SettingsModal.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setSession(session ?? null);
+    });
+
+    AsyncStorage.getItem('onboarding_done').then(val => { if (mounted) setOnboardingDone(val === '1'); });
+
+    // Start auto-refresh si app está activa al montar.
+    if (AppState.currentState === 'active') {
+      supabase.auth.startAutoRefresh();
+    }
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      appStateSub.remove();
+      supabase.auth.stopAutoRefresh();
+    };
   }, []);
 
   useEffect(() => {

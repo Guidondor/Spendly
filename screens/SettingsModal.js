@@ -6,6 +6,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { supabase } from '../services/supabase';
+import { withTimeout } from '../services/withTimeout';
+import { LABELS } from '../constants/i18n';
 import { useHousehold } from '../components/HouseholdProvider';
 import HouseholdModal from './HouseholdModal';
 import { AI_INSIGHT_CACHE_PREFIX } from './HomeScreen';
@@ -70,12 +72,14 @@ export default function SettingsModal({ visible, onClose, session }) {
     setDeleting(true);
     setDeleteError('');
     try {
-      const { error } = await supabase.rpc('delete_user_account');
+      const { error } = await withTimeout(supabase.rpc('delete_user_account'), 20000);
       if (error) throw error;
       await clearAIInsightCache();
       await supabase.auth.signOut({ scope: 'local' });
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Error al eliminar la cuenta');
+      if (__DEV__) console.warn('[SettingsModal] delete_user_account failed:', e?.message || e);
+      const L = LABELS[lang] || LABELS.es;
+      setDeleteError(L.deleteAccountError);
       setDeleting(false);
     }
   }

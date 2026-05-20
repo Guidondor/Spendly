@@ -139,23 +139,26 @@ const txStyle = StyleSheet.create({
 
 // ─── AI Insights card ─────────────────────────────────────────────────────────
 
-export const AI_INSIGHT_CACHE_PREFIX = 'spendly_insight_v1_';
+export const AI_INSIGHT_CACHE_PREFIX = 'spendly_insight_v2_';
 const AI_INSIGHT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-function AIInsightCard({ theme, userId, transactions, L, lang }) {
+function AIInsightCard({ theme, userId, transactions, L, lang, viewDate, householdId }) {
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(false);
   const hasTxs = transactions.length > 0;
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth() + 1;
+  const scope = householdId ? `hh${householdId}` : 'mine';
 
   useEffect(() => {
     if (!userId) return;
     const controller = new AbortController();
     loadInsight(controller.signal);
     return () => controller.abort();
-  }, [userId, lang, hasTxs]);
+  }, [userId, lang, hasTxs, year, month, scope]);
 
   async function loadInsight(signal) {
-    const cacheKey = `${AI_INSIGHT_CACHE_PREFIX}${userId}_${lang}`;
+    const cacheKey = `${AI_INSIGHT_CACHE_PREFIX}${userId}_${lang}_${year}_${month}_${scope}`;
     try {
       const raw = await AsyncStorage.getItem(cacheKey);
       if (raw) {
@@ -167,6 +170,7 @@ function AIInsightCard({ theme, userId, transactions, L, lang }) {
       }
     } catch {}
 
+    setInsight(null);
     if (transactions.length === 0) return;
 
     setLoading(true);
@@ -190,7 +194,10 @@ function AIInsightCard({ theme, userId, transactions, L, lang }) {
         if (signal.aborted) return;
         setInsight(data.insight);
         try {
-          await AsyncStorage.setItem(cacheKey, JSON.stringify({ insight: data.insight, timestamp: Date.now() }));
+          await AsyncStorage.setItem(
+            cacheKey,
+            JSON.stringify({ insight: data.insight, timestamp: Date.now() })
+          );
         } catch {}
       }
     } catch (e) {
@@ -403,7 +410,15 @@ export default function HomeScreen({ session }) {
         </View>
       </View>
 
-      <AIInsightCard theme={theme} userId={userId} transactions={transactions} L={L} lang={lang} />
+      <AIInsightCard
+        theme={theme}
+        userId={userId}
+        transactions={filteredTxs}
+        L={L}
+        lang={lang}
+        viewDate={viewDate}
+        householdId={household?.id || null}
+      />
     </>
   );
 

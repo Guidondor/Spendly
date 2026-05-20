@@ -120,6 +120,9 @@ export const LABELS = {
     budgetInvalidAmount: 'Monto inválido',
     budgetAmountRequired:'Ingresá un número mayor a cero',
     budgetSaveError:     'No se pudo guardar el presupuesto',
+    googleError:         'No se pudo iniciar sesión con Google. Intentá de nuevo.',
+    networkError:        'No se pudo conectar. Revisá tu conexión e intentá de nuevo.',
+    deleteAccountError:  'No se pudo eliminar la cuenta. Intentá de nuevo.',
   },
 
   en: {
@@ -243,6 +246,9 @@ export const LABELS = {
     budgetInvalidAmount: 'Invalid amount',
     budgetAmountRequired:'Enter a number greater than zero',
     budgetSaveError:     'Could not save budget',
+    googleError:         "Couldn't sign in with Google. Please try again.",
+    networkError:        "Couldn't connect. Check your connection and try again.",
+    deleteAccountError:  "Couldn't delete account. Please try again.",
   },
 };
 

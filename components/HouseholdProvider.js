@@ -39,9 +39,16 @@ export function HouseholdProvider({ session, children }) {
         setMembers([]);
       }
     } catch (e) {
-      if (__DEV__) console.error('[HouseholdProvider load]', e);
-      setHousehold(null);
-      setMembers([]);
+      if (__DEV__) console.warn('[HouseholdProvider load]', e?.message || e);
+      // Si el error es de red/timeout, NO resetear el state — el usuario sigue
+      // perteneciendo al hogar aunque la query haya fallado. Resetear solo en
+      // errores claros de auth/RLS (no realmente esperables acá, porque RLS no
+      // tira errores: simplemente devuelve filas vacías).
+      const isAuthError = e?.code === 'PGRST301' || e?.code === '401' || e?.status === 401;
+      if (isAuthError) {
+        setHousehold(null);
+        setMembers([]);
+      }
     } finally {
       if (!cancelled.current) setLoading(false);
     }

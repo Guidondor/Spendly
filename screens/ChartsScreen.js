@@ -117,7 +117,7 @@ export default function ChartsScreen({ route }) {
       <StatusBar barStyle="light-content" backgroundColor={theme.header} />
 
       <View style={s.header}>
-        <Text style={s.headerTitle}>Charts</Text>
+        <Text style={s.headerTitle}>{L.chartsTitle}</Text>
       </View>
 
       {/* Month selector */}

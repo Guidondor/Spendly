@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { withTimeout } from './withTimeout';
 
 // Devuelve TODOS los budgets que el user puede ver (los suyos privados +
 // los de su hogar). RLS hace el filtrado por visibilidad.
@@ -17,7 +18,7 @@ export async function getBudgets(userId, month, year, householdId = null) {
     q = q.eq('user_id', userId).is('household_id', null);
   }
 
-  const { data, error } = await q;
+  const { data, error } = await withTimeout(q);
   if (error) throw error;
   return data ?? [];
 }
@@ -48,30 +49,36 @@ export async function setBudget({ userId, category, amount, month, year, househo
   } else {
     existQ = existQ.eq('user_id', userId).is('household_id', null);
   }
-  const { data: existing, error: findErr } = await existQ.maybeSingle();
+  const { data: existing, error: findErr } = await withTimeout(existQ.maybeSingle());
   if (findErr) throw findErr;
 
   if (existing?.id) {
-    const { data, error } = await supabase
-      .from('budgets')
-      .update({ amount })
-      .eq('id', existing.id)
-      .select()
-      .single();
+    const { data, error } = await withTimeout(
+      supabase
+        .from('budgets')
+        .update({ amount })
+        .eq('id', existing.id)
+        .select()
+        .single()
+    );
     if (error) throw error;
     return data;
   }
 
-  const { data, error } = await supabase
-    .from('budgets')
-    .insert(row)
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from('budgets')
+      .insert(row)
+      .select()
+      .single()
+  );
   if (error) throw error;
   return data;
 }
 
 export async function deleteBudget(id) {
-  const { error } = await supabase.from('budgets').delete().eq('id', id);
+  const { error } = await withTimeout(
+    supabase.from('budgets').delete().eq('id', id)
+  );
   if (error) throw error;
 }
