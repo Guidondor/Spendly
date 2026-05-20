@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, Pressable, FlatList, StyleSheet,
   ActivityIndicator, RefreshControl, StatusBar, Platform,
@@ -260,12 +260,17 @@ export default function HomeScreen({ session }) {
   const userId = session?.user?.id;
   const householdId = household?.id ?? null;
 
+  // Tracks whether we've successfully loaded at least once. When true,
+  // subsequent focus events do a silent refresh (no full-screen spinner).
+  const hasDataRef = useRef(false);
+
   const loadTransactions = useCallback(async () => {
     if (!userId) return;
     try {
       await applyRecurring(userId, householdId);
       const data = await getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1, householdId);
       setTransactions(data);
+      hasDataRef.current = true;
     } catch {
       alert('Error', 'No se pudieron cargar los movimientos.');
     } finally {
@@ -276,7 +281,8 @@ export default function HomeScreen({ session }) {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      // Spinner gigante solo en cold start; en cada re-focus, refresh silencioso.
+      if (!hasDataRef.current) setLoading(true);
       loadTransactions();
     }, [loadTransactions])
   );

@@ -103,22 +103,6 @@ export async function leaveHousehold() {
   return data;
 }
 
-export async function updateSelfMember({ householdId, displayName, color }) {
-  const patch = {};
-  if (displayName !== undefined) patch.display_name = displayName;
-  if (color !== undefined) patch.color = color;
-  const { data, error } = await withTimeout(
-    supabase
-      .from('household_members')
-      .update(patch)
-      .eq('household_id', householdId)
-      .select()
-      .single()
-  );
-  if (error) throw error;
-  return data;
-}
-
 // ─── Color palette para asignar a miembros ────────────────────────────────────
 
 export const MEMBER_COLORS = [

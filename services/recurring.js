@@ -1,5 +1,12 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import { withTimeout } from './withTimeout';
+
+// Throttle: la lógica de "aplicar recurrentes pendientes este mes" no necesita
+// correr en cada focus de la app — basta con 1x cada 24h. El índice único
+// `uniq_recurring_per_month` previene duplicados, así que el throttle solo
+// ahorra latencia/red, no impone correctness.
+const APPLY_RECURRING_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Devuelve recurring privados + del hogar (RLS filtra por visibilidad).
 export async function getRecurring(userId, householdId = null) {
@@ -58,13 +65,26 @@ export async function deleteRecurring(id) {
 // household_id si corresponde. El índice único uniq_recurring_per_month previene
 // duplicados cuando otro miembro ya ejecutó.
 export async function applyRecurring(userId, householdId = null) {
+  // Throttle: si ya corrimos en las últimas 24h para este scope, saltar.
+  const scope = householdId ? `hh${householdId}` : 'mine';
+  const lastKey = `spendly_recurring_last_${userId}_${scope}`;
+  try {
+    const last = await AsyncStorage.getItem(lastKey);
+    if (last && Date.now() - Number(last) < APPLY_RECURRING_TTL_MS) {
+      return [];
+    }
+  } catch {}
+
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const today = now.getDate();
 
   const recurring = await getRecurring(userId, householdId);
-  if (recurring.length === 0) return [];
+  if (recurring.length === 0) {
+    try { await AsyncStorage.setItem(lastKey, String(Date.now())); } catch {}
+    return [];
+  }
 
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const monthEnd = month === 12
@@ -124,6 +144,10 @@ export async function applyRecurring(userId, householdId = null) {
       console.warn('[applyRecurring] iteration failed for rec', rec.id, e?.message || e);
     }
   }
+
+  // Marcar como aplicado solo si el loop terminó (incluso si individualmente
+  // hubo errores). Sin esto, errores transitorios harían reintentar en cada focus.
+  try { await AsyncStorage.setItem(lastKey, String(Date.now())); } catch {}
 
   return created;
 }
