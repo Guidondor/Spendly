@@ -7,6 +7,7 @@ import { useTheme } from '../services/theme';
 import { useAlert } from '../components/AppAlert';
 import { useHousehold } from '../components/HouseholdProvider';
 import AuthorBadge from '../components/AuthorBadge';
+import { LABELS } from '../constants/i18n';
 import {
   createHousehold,
   joinHousehold,
@@ -15,20 +16,26 @@ import {
   MEMBER_COLORS,
 } from '../services/households';
 
-const ERROR_MAP = {
-  unauthorized: 'Sesión inválida, volvé a entrar.',
-  already_in_household: 'Ya pertenecés a un hogar. Salí primero.',
-  invalid_or_expired_code: 'Código inválido o expirado.',
-  no_household: 'No estás en un hogar.',
-  not_owner: 'Solo el dueño del hogar puede hacer esto.',
-};
-
-function humanizeError(msg) {
-  return ERROR_MAP[msg] || msg || 'Algo salió mal';
+function buildErrorMap(L) {
+  return {
+    unauthorized:            L.errorUnauthorized,
+    already_in_household:    L.errorAlreadyInGroup,
+    invalid_or_expired_code: L.errorInvalidCode,
+    no_household:            L.errorNoGroup,
+    not_owner:               L.errorNotOwner,
+    cant_remove_self:        L.errorCantRemoveSelf,
+    not_a_member:            L.errorNotMember,
+  };
 }
 
-export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
-  const { theme } = useTheme();
+function humanizeError(msg, L) {
+  const map = buildErrorMap(L);
+  return map[msg] || msg || (L.networkError || 'Algo salió mal');
+}
+
+export default function HouseholdModal({ visible, onClose, defaultName = '', currentUserId = null }) {
+  const { theme, lang } = useTheme();
+  const L = LABELS[lang];
   const { alert, confirm } = useAlert();
   const { household, members, isOwner, reload } = useHousehold();
 
@@ -55,15 +62,15 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
   }
 
   async function handleCreate() {
-    if (!hhName.trim()) { alert('Error', 'Poné un nombre al hogar'); return; }
-    if (!displayName.trim()) { alert('Error', 'Poné tu nombre'); return; }
+    if (!hhName.trim()) { alert('Error', lang === 'es' ? 'Poné un nombre al grupo' : 'Enter a group name'); return; }
+    if (!displayName.trim()) { alert('Error', lang === 'es' ? 'Poné tu nombre' : 'Enter your name'); return; }
     setSubmitting(true);
     try {
       await createHousehold({ name: hhName.trim(), displayName: displayName.trim(), color });
       await reload();
       setView('menu');
     } catch (e) {
-      alert('Error', humanizeError(e.message));
+      alert('Error', humanizeError(e.message, L));
     } finally {
       setSubmitting(false);
     }
@@ -71,15 +78,15 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
 
   async function handleJoin() {
     const c = code.trim().toUpperCase();
-    if (c.length !== 6) { alert('Error', 'El código tiene 6 caracteres'); return; }
-    if (!joinDisplay.trim()) { alert('Error', 'Poné tu nombre'); return; }
+    if (c.length !== 6) { alert('Error', lang === 'es' ? 'El código tiene 6 caracteres' : 'Code is 6 characters'); return; }
+    if (!joinDisplay.trim()) { alert('Error', lang === 'es' ? 'Poné tu nombre' : 'Enter your name'); return; }
     setSubmitting(true);
     try {
       await joinHousehold({ code: c, displayName: joinDisplay.trim(), color: joinColor });
       await reload();
       setView('menu');
     } catch (e) {
-      alert('Error', humanizeError(e.message));
+      alert('Error', humanizeError(e.message, L));
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +98,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
       await rotateInviteCode();
       await reload();
     } catch (e) {
-      alert('Error', humanizeError(e.message));
+      alert('Error', humanizeError(e.message, L));
     } finally {
       setSubmitting(false);
     }
@@ -101,26 +108,26 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
     if (!household?.invite_code) return;
     try {
       await Share.share({
-        message: `Sumate a mi hogar en Spendly con el código: ${household.invite_code}\n\n(Expira en 24h)`,
+        message: L.shareCodeMessage.replace('{code}', household.invite_code),
       });
     } catch {}
   }
 
   async function handleLeave() {
     confirm({
-      title: 'Salir del hogar',
-      message: 'Las transacciones compartidas que cargaste van a quedar visibles para el resto. ¿Continuar?',
+      title: L.leaveGroupConfirmTitle,
+      message: L.leaveGroupConfirmMsg,
       buttons: [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: L.cancel, style: 'cancel' },
         {
-          text: 'Salir', style: 'destructive',
+          text: lang === 'es' ? 'Salir' : 'Leave', style: 'destructive',
           onPress: async () => {
             setSubmitting(true);
             try {
               await leaveHousehold();
               await reload();
             } catch (e) {
-              alert('Error', humanizeError(e.message));
+              alert('Error', humanizeError(e.message, L));
             } finally {
               setSubmitting(false);
             }
@@ -133,24 +140,28 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
   function expiryLabel() {
     if (!household?.invite_expires_at) return '';
     const ms = new Date(household.invite_expires_at).getTime() - Date.now();
-    if (ms <= 0) return 'Expirado';
+    if (ms <= 0) return lang === 'es' ? 'Expirado' : 'Expired';
     const hrs = Math.floor(ms / 3600000);
     const mins = Math.floor((ms % 3600000) / 60000);
-    if (hrs >= 1) return `Expira en ${hrs}h ${mins}m`;
-    return `Expira en ${mins}m`;
+    if (hrs >= 1) return lang === 'es' ? `Expira en ${hrs}h ${mins}m` : `Expires in ${hrs}h ${mins}m`;
+    return lang === 'es' ? `Expira en ${mins}m` : `Expires in ${mins}m`;
   }
 
   function renderActiveHousehold() {
     const expired = household.invite_expires_at && new Date(household.invite_expires_at) < new Date();
     return (
       <>
-        <Text style={s.sectionLabel}>HOGAR</Text>
+        <Text style={s.sectionLabel}>{L.groupSection}</Text>
         <View style={s.card}>
           <Text style={s.hhName}>{household.name}</Text>
-          <Text style={s.hhMeta}>{members.length} miembro{members.length === 1 ? '' : 's'}</Text>
+          <Text style={s.hhMeta}>
+            {members.length} {lang === 'es'
+              ? (members.length === 1 ? 'miembro' : 'miembros')
+              : (members.length === 1 ? 'member' : 'members')}
+          </Text>
         </View>
 
-        <Text style={s.sectionLabel}>MIEMBROS</Text>
+        <Text style={s.sectionLabel}>{lang === 'es' ? 'MIEMBROS' : 'MEMBERS'}</Text>
         <View style={s.card}>
           {members.map((m, idx) => (
             <View
@@ -162,7 +173,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
                 <Text style={s.memberName}>
                   {m.display_name}
                   {m.user_id === household.owner_id && (
-                    <Text style={s.ownerTag}>  · dueño</Text>
+                    <Text style={s.ownerTag}>  · {L.groupOwner}</Text>
                   )}
                 </Text>
               </View>
@@ -170,7 +181,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
           ))}
         </View>
 
-        <Text style={s.sectionLabel}>CÓDIGO DE INVITACIÓN</Text>
+        <Text style={s.sectionLabel}>{L.inviteCode.toUpperCase()}</Text>
         <View style={s.card}>
           <Text style={[s.code, expired && { color: theme.expense }]}>{household.invite_code}</Text>
           <Text style={s.codeMeta}>{expiryLabel()}</Text>
@@ -180,7 +191,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
               onPress={handleShareCode}
               disabled={submitting || expired}
             >
-              <Text style={s.actionBtnText}>Compartir</Text>
+              <Text style={s.actionBtnText}>{lang === 'es' ? 'Compartir' : 'Share'}</Text>
             </TouchableOpacity>
             {isOwner && (
               <TouchableOpacity
@@ -190,7 +201,9 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
               >
                 {submitting ? <ActivityIndicator color={theme.text} /> : (
                   <Text style={[s.actionBtnText, { color: theme.text }]}>
-                    {expired ? 'Generar nuevo' : 'Rotar'}
+                    {expired
+                      ? (lang === 'es' ? 'Generar nuevo' : 'Generate new')
+                      : (lang === 'es' ? 'Rotar' : 'Rotate')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -203,7 +216,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
           onPress={handleLeave}
           disabled={submitting}
         >
-          <Text style={s.leaveBtnText}>🚪  Salir del hogar</Text>
+          <Text style={s.leaveBtnText}>🚪  {L.leaveGroup}</Text>
         </TouchableOpacity>
       </>
     );
@@ -214,22 +227,20 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
 
     return (
       <>
-        <Text style={s.helpText}>
-          Compartí gastos, presupuestos y metas con otra persona. Creá un hogar nuevo o uníte con un código.
-        </Text>
+        <Text style={s.helpText}>{L.groupHelpText}</Text>
         <TouchableOpacity
           style={[s.bigBtn, { backgroundColor: theme.accent }]}
           onPress={() => setView('create')}
         >
-          <Text style={s.bigBtnIcon}>🏠</Text>
-          <Text style={s.bigBtnText}>Crear hogar nuevo</Text>
+          <Text style={s.bigBtnIcon}>👥</Text>
+          <Text style={s.bigBtnText}>{L.createGroupBtn}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.bigBtn, { backgroundColor: theme.card, borderWidth: 1.5, borderColor: theme.accent }]}
           onPress={() => setView('join')}
         >
           <Text style={s.bigBtnIcon}>🔑</Text>
-          <Text style={[s.bigBtnText, { color: theme.accent }]}>Unirme con código</Text>
+          <Text style={[s.bigBtnText, { color: theme.accent }]}>{L.joinGroupBtn}</Text>
         </TouchableOpacity>
       </>
     );
@@ -257,30 +268,30 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
     return (
       <>
         <TouchableOpacity onPress={() => setView('menu')} style={s.backRow}>
-          <Text style={s.backText}>‹ Volver</Text>
+          <Text style={s.backText}>‹ {lang === 'es' ? 'Volver' : 'Back'}</Text>
         </TouchableOpacity>
 
-        <Text style={s.label}>Nombre del hogar</Text>
+        <Text style={s.label}>{L.groupName}</Text>
         <TextInput
           style={s.input}
-          placeholder="ej: Casa Burak"
+          placeholder={L.groupNamePlaceholder}
           placeholderTextColor={theme.placeholderText}
           value={hhName}
           onChangeText={setHhName}
           maxLength={60}
         />
 
-        <Text style={s.label}>Tu nombre en este hogar</Text>
+        <Text style={s.label}>{L.yourNameInGroup}</Text>
         <TextInput
           style={s.input}
-          placeholder="ej: Guido"
+          placeholder={lang === 'es' ? 'ej: Guido' : 'e.g. Guido'}
           placeholderTextColor={theme.placeholderText}
           value={displayName}
           onChangeText={setDisplayName}
           maxLength={30}
         />
 
-        <Text style={s.label}>Tu color</Text>
+        <Text style={s.label}>{L.yourColor}</Text>
         {renderColorPicker(color, setColor)}
 
         <TouchableOpacity
@@ -288,7 +299,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
           onPress={handleCreate}
           disabled={submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.submitBtnText}>Crear hogar</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.submitBtnText}>{L.createGroupSubmit}</Text>}
         </TouchableOpacity>
       </>
     );
@@ -298,10 +309,10 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
     return (
       <>
         <TouchableOpacity onPress={() => setView('menu')} style={s.backRow}>
-          <Text style={s.backText}>‹ Volver</Text>
+          <Text style={s.backText}>‹ {lang === 'es' ? 'Volver' : 'Back'}</Text>
         </TouchableOpacity>
 
-        <Text style={s.label}>Código del hogar (6 caracteres)</Text>
+        <Text style={s.label}>{L.groupCodeLabel}</Text>
         <TextInput
           style={[s.input, s.inputCode]}
           placeholder="ABC123"
@@ -313,17 +324,17 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
           maxLength={6}
         />
 
-        <Text style={s.label}>Tu nombre en el hogar</Text>
+        <Text style={s.label}>{L.yourNameInGroup}</Text>
         <TextInput
           style={s.input}
-          placeholder="ej: Estefi"
+          placeholder={lang === 'es' ? 'ej: Estefi' : 'e.g. Steph'}
           placeholderTextColor={theme.placeholderText}
           value={joinDisplay}
           onChangeText={setJoinDisplay}
           maxLength={30}
         />
 
-        <Text style={s.label}>Tu color</Text>
+        <Text style={s.label}>{L.yourColor}</Text>
         {renderColorPicker(joinColor, setJoinColor)}
 
         <TouchableOpacity
@@ -331,7 +342,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
           onPress={handleJoin}
           disabled={submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.submitBtnText}>Unirme</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.submitBtnText}>{L.joinGroupSubmit}</Text>}
         </TouchableOpacity>
       </>
     );
@@ -343,7 +354,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '' }) {
         <View style={s.container}>
           <View style={s.handle} />
           <View style={s.titleRow}>
-            <Text style={s.title}>Hogar compartido</Text>
+            <Text style={s.title}>{L.sharedGroup}</Text>
             <TouchableOpacity onPress={close} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Text style={s.closeBtn}>✕</Text>
             </TouchableOpacity>

@@ -219,7 +219,7 @@ export default function BudgetsScreen({ route }) {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 12 }}>
           {/* Sección: Mis presupuestos */}
           <Text style={s.sectionHeader}>
-            {household ? (lang === 'es' ? 'MIS PRESUPUESTOS' : 'MY BUDGETS') : L.budgetsTitle.toUpperCase()}
+            {household ? L.mySection.toUpperCase() : L.budgetsTitle.toUpperCase()}
           </Text>
           {EXPENSE_CATEGORIES.map(cat =>
             renderBudgetCard({
@@ -235,7 +235,7 @@ export default function BudgetsScreen({ route }) {
           {household && (
             <>
               <Text style={[s.sectionHeader, { marginTop: 20 }]}>
-                {(lang === 'es' ? 'PRESUPUESTOS DEL HOGAR — ' : 'HOUSEHOLD BUDGETS — ') + household.name.toUpperCase()}
+                {L.hhSection.toUpperCase()} — {household.name.toUpperCase()}
               </Text>
               {EXPENSE_CATEGORIES.map(cat =>
                 renderBudgetCard({

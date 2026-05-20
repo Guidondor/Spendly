@@ -260,7 +260,7 @@ export default function GoalsScreen({ route }) {
 
           {/* Mis metas */}
           <Text style={s.sectionHeader}>
-            {household ? (lang === 'es' ? 'MIS METAS' : 'MY GOALS') : L.goalsTitle.toUpperCase()}
+            {household ? L.myGoals.toUpperCase() : L.goalsTitle.toUpperCase()}
           </Text>
           {privateGoals.map(goal => (
             <GoalCard
@@ -280,7 +280,7 @@ export default function GoalsScreen({ route }) {
           {household && (
             <>
               <Text style={[s.sectionHeader, { marginTop: 16 }]}>
-                {(lang === 'es' ? 'METAS DEL HOGAR — ' : 'HOUSEHOLD GOALS — ') + household.name.toUpperCase()}
+                {L.hhGoals.toUpperCase()} — {household.name.toUpperCase()}
               </Text>
               {sharedGoals.map(goal => (
                 <GoalCard
@@ -293,7 +293,7 @@ export default function GoalsScreen({ route }) {
                 />
               ))}
               <TouchableOpacity style={s.addGoalBtn} onPress={() => openAdd('household')}>
-                <Text style={s.addGoalBtnText}>+ {lang === 'es' ? 'Agregar meta del hogar' : 'Add household goal'}</Text>
+                <Text style={s.addGoalBtnText}>+ {L.addGroupGoal}</Text>
               </TouchableOpacity>
             </>
           )}

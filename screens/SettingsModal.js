@@ -122,19 +122,19 @@ export default function SettingsModal({ visible, onClose, session }) {
           />
         </View>
 
-        {/* Hogar compartido */}
-        <Text style={s.sectionLabel}>{lang === 'es' ? 'HOGAR COMPARTIDO' : 'SHARED HOUSEHOLD'}</Text>
+        {/* Grupo compartido */}
+        <Text style={s.sectionLabel}>{(LABELS[lang].sharedGroup || 'Grupo compartido').toUpperCase()}</Text>
         <TouchableOpacity
           style={s.row}
           onPress={() => setHouseholdVisible(true)}
           activeOpacity={0.8}
         >
-          <Text style={s.rowIcon}>🏠</Text>
+          <Text style={s.rowIcon}>👥</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.rowLabel}>
               {household
                 ? household.name
-                : (lang === 'es' ? 'Crear o unirse a un hogar' : 'Create or join a household')}
+                : (lang === 'es' ? 'Crear o unirse a un grupo' : 'Create or join a group')}
             </Text>
             {household && (
               <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 2 }}>
@@ -196,6 +196,7 @@ export default function SettingsModal({ visible, onClose, session }) {
 
       <HouseholdModal
         visible={householdVisible}
+        currentUserId={session?.user?.id}
         onClose={() => setHouseholdVisible(false)}
         defaultName={displayName}
       />

@@ -35,6 +35,7 @@ export async function setBudget({ userId, category, amount, month, year, househo
     month,
     year,
     household_id: householdId || null,
+    created_by: userId,
   };
 
   // Buscar si ya existe (no podemos upsert con onConflict dinámico)

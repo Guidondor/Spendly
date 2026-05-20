@@ -101,7 +101,7 @@ export default function RecurringModal({ visible, onClose, userId }) {
                   <View style={s.info}>
                     <Text style={[s.desc, { color: theme.text }]} numberOfLines={1}>{item.description}</Text>
                     <Text style={[s.meta, { color: theme.subtext }]} numberOfLines={1}>
-                      {isShared ? `🏠 Hogar · ` : ''}{cat.name} · Día {item.day_of_month}
+                      {isShared ? `👥 ${L.pillHh} · ` : ''}{cat.name} · Día {item.day_of_month}
                       {isShared && owner ? ` · ${owner.display_name}` : ''}
                     </Text>
                   </View>

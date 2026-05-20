@@ -73,7 +73,7 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
 
     confirm({
       title: transaction.description,
-      message: canEdit ? 'Seleccioná una opción' : 'Esta es una transacción de otro miembro del hogar.',
+      message: canEdit ? 'Seleccioná una opción' : L.txOfAnotherMember,
       buttons,
     });
   }
@@ -105,7 +105,7 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
             </>
           )}
           <Text style={[txStyle.category, { color: theme.subtext }]}>
-            {isShared ? 'Hogar' : cat.name}
+            {isShared ? L.pillHh : cat.name}
           </Text>
         </View>
       </View>
@@ -347,13 +347,13 @@ export default function HomeScreen({ session }) {
 
   const ListHeader = (
     <>
-      {/* Pills de filtro (solo si hay hogar) */}
+      {/* Pills de filtro (solo si hay grupo) */}
       {household && (
         <View style={s.pillsRow}>
           {[
-            { key: 'all',       label: 'Todo' },
-            { key: 'mine',      label: 'Mías' },
-            { key: 'household', label: 'Hogar' },
+            { key: 'all',       label: L.pillAll },
+            { key: 'mine',      label: L.pillMine },
+            { key: 'household', label: L.pillHh },
           ].map(p => (
             <TouchableOpacity
               key={p.key}
@@ -383,13 +383,13 @@ export default function HomeScreen({ session }) {
         {household && (
           <View style={s.splitRow}>
             <View style={s.splitItem}>
-              <Text style={[s.splitLabel, { color: theme.subtext }]}>Personal</Text>
+              <Text style={[s.splitLabel, { color: theme.subtext }]}>{L.balanceMine}</Text>
               <Text style={[s.splitValue, { color: theme.text }]}>
                 {formatMoney(personalIncome - personalExpenses)}
               </Text>
             </View>
             <View style={s.splitItem}>
-              <Text style={[s.splitLabel, { color: theme.subtext }]}>Hogar</Text>
+              <Text style={[s.splitLabel, { color: theme.subtext }]}>{L.balanceHh}</Text>
               <Text style={[s.splitValue, { color: theme.text }]}>
                 {formatMoney(householdIncome - householdExpenses)}
               </Text>

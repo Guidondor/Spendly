@@ -28,6 +28,7 @@ export async function addGoal({ userId, name, icon, color, target, householdId =
     target,
     saved: 0,
     household_id: householdId || null,
+    created_by: userId,
   };
   const { data, error } = await withTimeout(
     supabase

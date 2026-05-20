@@ -250,13 +250,13 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
               />
             )}
 
-            {/* Compartir con el hogar */}
+            {/* Compartir con el grupo */}
             {household && (
               <View style={[s.recurringSection, { marginBottom: 12 }]}>
                 <View style={s.recurringRow}>
-                  <Text style={s.recurringIcon}>🏠</Text>
+                  <Text style={s.recurringIcon}>👥</Text>
                   <Text style={[s.recurringLabel, { color: theme.text }]}>
-                    Compartir con {household.name}
+                    {L.shareWithGroup} {household.name}
                   </Text>
                   <Switch
                     value={isShared}

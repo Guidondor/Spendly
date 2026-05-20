@@ -103,6 +103,79 @@ export async function leaveHousehold() {
   return data;
 }
 
+// Solo dueño. Elimina a otro miembro del grupo (no permite auto-removerse).
+export async function removeHouseholdMember(targetUserId) {
+  const { data, error } = await withTimeout(
+    supabase.rpc('remove_household_member', { p_target_user_id: targetUserId }),
+    15000
+  );
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  await clearAIInsightCache();
+  return data;
+}
+
+// Solo dueño. Borra el grupo entero. Los registros con household_id quedan
+// privados gracias a ON DELETE SET NULL.
+export async function deleteHousehold() {
+  const { data, error } = await withTimeout(supabase.rpc('delete_household'), 15000);
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  await clearAIInsightCache();
+  return data;
+}
+
+// ─── Settle-up: cálculo cliente (no requiere RPC) ──────────────────────────────
+
+// Dado el conjunto de transacciones del mes y los miembros del grupo, devuelve
+// quién le debe cuánto a quién para que todos terminen pagando lo mismo. Usa un
+// algoritmo greedy: el creditor con más a cobrar recibe del debtor con más
+// para pagar, iterativamente.
+//
+// Retorna null si no aplica (sin grupo o <2 miembros). Si no hay gasto
+// compartido, devuelve { total: 0, fairShare: 0, balances: [], transfers: [] }.
+export function computeSettlement(transactions, members, householdId) {
+  if (!householdId || !Array.isArray(members) || members.length < 2) return null;
+
+  const sharedExp = transactions.filter(
+    tx => tx.type === 'expense' && tx.household_id === householdId
+  );
+  const totalSpent = sharedExp.reduce((s, tx) => s + Number(tx.amount), 0);
+  if (totalSpent === 0) {
+    return { total: 0, fairShare: 0, balances: [], transfers: [] };
+  }
+
+  const fairShare = totalSpent / members.length;
+  const balances = members.map(m => {
+    const spent = sharedExp
+      .filter(tx => tx.user_id === m.user_id)
+      .reduce((s, tx) => s + Number(tx.amount), 0);
+    return { member: m, spent, balance: spent - fairShare };
+  });
+
+  const creditors = balances
+    .filter(b => b.balance > 0.01)
+    .map(b => ({ ...b, remaining: b.balance }))
+    .sort((a, b) => b.remaining - a.remaining);
+  const debtors = balances
+    .filter(b => b.balance < -0.01)
+    .map(b => ({ ...b, remaining: -b.balance }))
+    .sort((a, b) => b.remaining - a.remaining);
+
+  const transfers = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const amount = Math.min(debtors[i].remaining, creditors[j].remaining);
+    transfers.push({ from: debtors[i].member, to: creditors[j].member, amount });
+    debtors[i].remaining -= amount;
+    creditors[j].remaining -= amount;
+    if (debtors[i].remaining < 0.01) i++;
+    if (creditors[j].remaining < 0.01) j++;
+  }
+
+  return { total: totalSpent, fairShare, balances, transfers };
+}
+
 // ─── Color palette para asignar a miembros ────────────────────────────────────
 
 export const MEMBER_COLORS = [
