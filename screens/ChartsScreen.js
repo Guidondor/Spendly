@@ -13,6 +13,7 @@ import { CategoryIcon } from '../services/categories';
 import { LABELS, MONTHS, MONTHS_SHORT } from '../constants/i18n';
 import { formatMoney } from '../services/format';
 import { useHousehold } from '../components/HouseholdProvider';
+import AuthorBadge from '../components/AuthorBadge';
 
 
 function formatCompact(n) {
@@ -73,7 +74,7 @@ export default function ChartsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
-  const { household } = useHousehold();
+  const { household, getMemberById } = useHousehold();
   const userId = route?.params?.userId;
   const householdId = household?.id ?? null;
 
@@ -109,6 +110,27 @@ export default function ChartsScreen({ route }) {
       })
       .sort((a, b) => b.amount - a.amount);
   }, [expenses]);
+
+  // Solo cuando hay grupo: por categoría, agrupa gasto por user_id.
+  // Devuelve un map { [catKey]: [{ member, amount }, ...] } ordenado por monto.
+  const byCategoryAndMember = useMemo(() => {
+    if (!household) return null;
+    const result = {};
+    byCategory.forEach(c => {
+      const grouped = {};
+      expenses
+        .filter(t => t.category === c.key)
+        .forEach(t => {
+          grouped[t.user_id] = (grouped[t.user_id] || 0) + Number(t.amount);
+        });
+      const entries = Object.entries(grouped)
+        .map(([uid, amt]) => ({ member: getMemberById(uid), amount: amt }))
+        .filter(x => x.member && x.amount > 0)
+        .sort((a, b) => b.amount - a.amount);
+      result[c.key] = entries;
+    });
+    return result;
+  }, [byCategory, expenses, household, getMemberById]);
 
   const s = useMemo(() => createStyles(theme), [theme]);
 
@@ -170,6 +192,8 @@ export default function ChartsScreen({ route }) {
                 <View style={[s.divider, { backgroundColor: theme.divider }]} />
                 {byCategory.map(item => {
                   const pct = (item.amount / totalExpense) * 100;
+                  const memberEntries = byCategoryAndMember?.[item.key] || [];
+                  const showMembers = household && memberEntries.length > 1;
                   return (
                     <View key={item.key} style={s.catRow}>
                       <View style={[s.catIconWrap, { backgroundColor: item.color + '20' }]}>
@@ -180,9 +204,45 @@ export default function ChartsScreen({ route }) {
                           <Text style={[s.catName, { color: theme.text }]}>{item.name}</Text>
                           <Text style={[s.catAmount, { color: theme.expense }]}>{formatMoney(item.amount)}</Text>
                         </View>
-                        <View style={[s.progressTrack, { backgroundColor: theme.input }]}>
-                          <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: item.color }]} />
-                        </View>
+                        {showMembers ? (
+                          <>
+                            <View style={[s.progressTrack, { backgroundColor: theme.input }]}>
+                              {/* Stacked bar: ancho total = pct de la categoría sobre todos los gastos.
+                                  Dentro, cada miembro ocupa su proporción del gasto de la categoría. */}
+                              <View style={{ flexDirection: 'row', width: `${pct}%`, height: '100%' }}>
+                                {memberEntries.map(({ member, amount }, i) => (
+                                  <View
+                                    key={member.user_id}
+                                    style={{
+                                      height: '100%',
+                                      width: `${(amount / item.amount) * 100}%`,
+                                      backgroundColor: member.color,
+                                      borderRightWidth: i < memberEntries.length - 1 ? 1 : 0,
+                                      borderRightColor: 'rgba(255,255,255,0.5)',
+                                    }}
+                                  />
+                                ))}
+                              </View>
+                            </View>
+                            <View style={s.catMemberLabels}>
+                              {memberEntries.map(({ member, amount }) => (
+                                <View key={member.user_id} style={s.catMemberChip}>
+                                  <AuthorBadge member={member} size="sm" />
+                                  <Text style={[s.catMemberName, { color: theme.text }]}>
+                                    {member.display_name}
+                                  </Text>
+                                  <Text style={[s.catMemberAmount, { color: theme.subtext }]}>
+                                    {formatMoney(amount)}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          </>
+                        ) : (
+                          <View style={[s.progressTrack, { backgroundColor: theme.input }]}>
+                            <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: item.color }]} />
+                          </View>
+                        )}
                       </View>
                     </View>
                   );
@@ -323,6 +383,16 @@ function createStyles(t) {
     catAmount: { fontSize: 14, fontWeight: '700' },
     progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: 6, borderRadius: 3 },
+    catMemberLabels: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8,
+    },
+    catMemberChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: 8, paddingVertical: 4,
+      borderRadius: 12, backgroundColor: t.input,
+    },
+    catMemberName: { fontSize: 11, fontWeight: '700' },
+    catMemberAmount: { fontSize: 11, fontWeight: '600' },
     barChart: {
       flexDirection: 'row', alignItems: 'flex-end',
       justifyContent: 'space-between', height: 140, paddingTop: 8,

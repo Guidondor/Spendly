@@ -324,54 +324,107 @@ export default function HomeScreen({ session }) {
   }
 
 
-  // Filtrado por scope (Todo / Mías / Hogar)
+  // Filtrado por scope (Todo / Mías / Grupo)
   const filteredTxs = useMemo(() => {
-    if (!household) return transactions; // sin hogar todo se considera "mío"
+    if (!household) return transactions; // sin grupo todo se considera "mío"
     if (scopeFilter === 'mine')      return transactions.filter(t => !t.household_id);
     if (scopeFilter === 'household') return transactions.filter(t => !!t.household_id);
     return transactions;
   }, [transactions, scopeFilter, household]);
 
-  // Balance personal vs hogar (separados solo si hay hogar)
+  // Contadores por scope (para badges de las pills)
+  const counts = useMemo(() => {
+    if (!household) return { all: transactions.length, mine: transactions.length, household: 0 };
+    return {
+      all: transactions.length,
+      mine: transactions.filter(t => !t.household_id).length,
+      household: transactions.filter(t => t.household_id === household.id).length,
+    };
+  }, [transactions, household]);
+
+  // Label del balance según scope
+  const balanceLabel = useMemo(() => {
+    if (!household || scopeFilter === 'all') return L.balance;
+    if (scopeFilter === 'mine')              return L.balanceMine;
+    return `${L.balanceHh} — ${household.name}`;
+  }, [household, scopeFilter, L]);
+
+  // Breakdown por miembro: agrupa expenses del scope actual por user_id
+  const memberBreakdown = useMemo(() => {
+    if (!household) return null;
+    if (scopeFilter === 'mine') return null;
+    const expensesByMember = {};
+    filteredTxs
+      .filter(t => t.type === 'expense' && (scopeFilter === 'household' ? t.household_id === household.id : true))
+      .forEach(t => {
+        expensesByMember[t.user_id] = (expensesByMember[t.user_id] || 0) + Number(t.amount);
+      });
+    const entries = Object.entries(expensesByMember)
+      .map(([mid, amt]) => ({ member: getMemberById(mid), amount: amt }))
+      .filter(x => x.member && x.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+    if (entries.length < 2) return null;
+    const total = entries.reduce((s, x) => s + x.amount, 0);
+    return { entries, total };
+  }, [filteredTxs, household, scopeFilter, getMemberById]);
+
+  // Balance personal vs hogar (separados solo si hay grupo)
   const personalIncome   = transactions.filter(t => !t.household_id && t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const personalExpenses = transactions.filter(t => !t.household_id && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const householdIncome   = transactions.filter(t => t.household_id && t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const householdExpenses = transactions.filter(t => t.household_id && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
 
-  const income   = personalIncome + (household ? householdIncome : 0);
-  const expenses = personalExpenses + (household ? householdExpenses : 0);
-  const balance  = income - expenses;
+  // Income / expenses respetan el scope filter (la card de balance refleja lo que se ve)
+  const income = !household || scopeFilter === 'all'
+    ? personalIncome + householdIncome
+    : scopeFilter === 'mine'
+      ? personalIncome
+      : householdIncome;
+  const expenses = !household || scopeFilter === 'all'
+    ? personalExpenses + householdExpenses
+    : scopeFilter === 'mine'
+      ? personalExpenses
+      : householdExpenses;
+  const balance = income - expenses;
 
   const sections = useMemo(() => groupByDate(filteredTxs, L, lang), [filteredTxs, L, lang]);
   const s = useMemo(() => createStyles(theme), [theme]);
 
   const ListHeader = (
     <>
-      {/* Pills de filtro (solo si hay grupo) */}
+      {/* Pills de filtro (solo si hay grupo) — con contadores */}
       {household && (
         <View style={s.pillsRow}>
           {[
-            { key: 'all',       label: L.pillAll },
-            { key: 'mine',      label: L.pillMine },
-            { key: 'household', label: L.pillHh },
-          ].map(p => (
-            <TouchableOpacity
-              key={p.key}
-              style={[s.pill, scopeFilter === p.key && { backgroundColor: theme.accent }]}
-              onPress={() => setScopeFilter(p.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.pillText, { color: scopeFilter === p.key ? '#fff' : theme.subtext }]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+            { key: 'all',       label: L.pillAll,  count: counts.all },
+            { key: 'mine',      label: L.pillMine, count: counts.mine },
+            { key: 'household', label: L.pillHh,   count: counts.household },
+          ].map(p => {
+            const active = scopeFilter === p.key;
+            return (
+              <TouchableOpacity
+                key={p.key}
+                style={[s.pill, active && { backgroundColor: theme.accent }]}
+                onPress={() => setScopeFilter(p.key)}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.pillText, { color: active ? '#fff' : theme.subtext }]}>
+                  {p.label}
+                </Text>
+                <View style={[s.pillBadge, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : theme.input }]}>
+                  <Text style={[s.pillBadgeText, { color: active ? '#fff' : theme.subtext }]}>
+                    {p.count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
       {/* Balance card */}
       <View style={s.balanceCard}>
-        <Text style={s.balanceLabel}>{L.balance.toUpperCase()}</Text>
+        <Text style={s.balanceLabel}>{balanceLabel.toUpperCase()}</Text>
         <Text style={[s.balanceAmount, { color: balance >= 0 ? theme.income : theme.expense }]}>
           {balance >= 0 ? '' : '-'}{formatMoney(balance)}
         </Text>
@@ -380,7 +433,7 @@ export default function HomeScreen({ session }) {
           <View style={[s.balanceBarFill, { backgroundColor: theme.income }]} />
         </View>
 
-        {household && (
+        {household && scopeFilter === 'all' && (
           <View style={s.splitRow}>
             <View style={s.splitItem}>
               <Text style={[s.splitLabel, { color: theme.subtext }]}>{L.balanceMine}</Text>
@@ -394,6 +447,43 @@ export default function HomeScreen({ session }) {
                 {formatMoney(householdIncome - householdExpenses)}
               </Text>
             </View>
+          </View>
+        )}
+
+        {/* Breakdown por miembro: stacked bar + filas */}
+        {memberBreakdown && (
+          <View style={s.memberBreakdown}>
+            <Text style={[s.memberBreakdownTitle, { color: theme.subtext }]}>
+              {L.spendingByMember.toUpperCase()}
+            </Text>
+            <View style={s.stackedBar}>
+              {memberBreakdown.entries.map(({ member, amount }, i) => (
+                <View
+                  key={member.user_id}
+                  style={{
+                    height: '100%',
+                    width: `${(amount / memberBreakdown.total) * 100}%`,
+                    backgroundColor: member.color,
+                    borderRightWidth: i < memberBreakdown.entries.length - 1 ? 1 : 0,
+                    borderRightColor: 'rgba(255,255,255,0.5)',
+                  }}
+                />
+              ))}
+            </View>
+            {memberBreakdown.entries.map(({ member, amount }) => (
+              <View key={member.user_id} style={s.memberRow}>
+                <AuthorBadge member={member} size="sm" />
+                <Text style={[s.memberName, { color: theme.text }]} numberOfLines={1}>
+                  {member.display_name}
+                </Text>
+                <Text style={[s.memberPct, { color: theme.subtext }]}>
+                  {Math.round((amount / memberBreakdown.total) * 100)}%
+                </Text>
+                <Text style={[s.memberAmount, { color: theme.text }]}>
+                  {formatMoney(amount)}
+                </Text>
+              </View>
+            ))}
           </View>
         )}
 
@@ -509,6 +599,17 @@ export default function HomeScreen({ session }) {
               tintColor={theme.accent}
             />
           }
+          ListFooterComponent={
+            filteredTxs.length > 0 ? (
+              <View style={[s.allCaughtUp, { borderColor: theme.cardBorder }]}>
+                <Text style={s.allCaughtUpEmoji}>🌱</Text>
+                <Text style={[s.allCaughtUpTitle, { color: theme.text }]}>{L.allCaughtUp}</Text>
+                <Text style={[s.allCaughtUpSub, { color: theme.subtext }]}>
+                  {L.txsThisMonth.replace('{n}', filteredTxs.length)}
+                </Text>
+              </View>
+            ) : null
+          }
           contentContainerStyle={{ paddingBottom: 110 }}
         />
       )}
@@ -578,17 +679,58 @@ function createStyles(t) {
     monthArrow: { color: 'rgba(255,255,255,0.7)', fontSize: 28, lineHeight: 30, fontWeight: '300' },
     monthLabel: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-    // Pills filtro hogar
+    // Pills filtro grupo
     pillsRow: {
       flexDirection: 'row', gap: 8,
       paddingHorizontal: 16, marginTop: 12, marginBottom: 4,
     },
     pill: {
-      paddingHorizontal: 14, paddingVertical: 6,
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: 12, paddingVertical: 6,
       borderRadius: 18, backgroundColor: t.card,
       borderWidth: 1, borderColor: t.cardBorder,
     },
     pillText: { fontSize: 13, fontWeight: '700' },
+    pillBadge: {
+      borderRadius: 9, minWidth: 18, paddingHorizontal: 6, paddingVertical: 1,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    pillBadgeText: { fontSize: 11, fontWeight: '700' },
+
+    // Breakdown por miembro
+    memberBreakdown: {
+      marginTop: 14, paddingTop: 14,
+      borderTopWidth: 1, borderTopColor: t.divider,
+    },
+    memberBreakdownTitle: {
+      fontSize: 10, fontWeight: '800', letterSpacing: 0.8,
+      marginBottom: 10,
+    },
+    stackedBar: {
+      flexDirection: 'row', height: 8, borderRadius: 4,
+      overflow: 'hidden', backgroundColor: t.input,
+      marginBottom: 10,
+    },
+    memberRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingVertical: 4,
+    },
+    memberName: { flex: 1, fontSize: 13, fontWeight: '600' },
+    memberPct: { fontSize: 12, fontWeight: '700', width: 40, textAlign: 'right' },
+    memberAmount: { fontSize: 13, fontWeight: '800', minWidth: 60, textAlign: 'right' },
+
+    // Footer "estás al día"
+    allCaughtUp: {
+      alignSelf: 'center', alignItems: 'center',
+      marginTop: 20, marginHorizontal: 20, padding: 20,
+      borderRadius: 18,
+      borderWidth: 1, borderStyle: 'dashed',
+      backgroundColor: 'rgba(22,163,74,0.04)',
+      maxWidth: 320,
+    },
+    allCaughtUpEmoji: { fontSize: 32, marginBottom: 8 },
+    allCaughtUpTitle: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
+    allCaughtUpSub: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
 
     // Split personal/hogar dentro del balance card
     splitRow: { flexDirection: 'row', marginBottom: 14, gap: 8 },

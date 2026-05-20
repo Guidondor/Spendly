@@ -13,9 +13,40 @@ import { EXPENSE_CATEGORIES, CategoryIcon } from '../services/categories';
 import { LABELS, MONTHS } from '../constants/i18n';
 import { formatMoney } from '../services/format';
 import { useHousehold } from '../components/HouseholdProvider';
+import AuthorBadge from '../components/AuthorBadge';
+
+// Header de sección con ícono fuerte (👤 = personal, 👥 = grupo)
+function SectionHeader({ icon, title, subtitle, theme }) {
+  return (
+    <View style={shStyle.row}>
+      <View style={[shStyle.iconWrap, { backgroundColor: theme.input }]}>
+        <Text style={shStyle.icon}>{icon}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[shStyle.title, { color: theme.text }]}>{title.toUpperCase()}</Text>
+        {subtitle ? (
+          <Text style={[shStyle.subtitle, { color: theme.subtext }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const shStyle = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginTop: 4, marginBottom: 8, paddingHorizontal: 2,
+  },
+  iconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  icon: { fontSize: 16 },
+  title: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8 },
+  subtitle: { fontSize: 11, fontWeight: '500', marginTop: 2 },
+});
 
 // Helper: renderiza una card de categoría con su barra de progreso.
-function renderBudgetCard({ cat, scope, spent, budget, onPress, s, theme, L }) {
+function renderBudgetCard({ cat, scope, spent, budget, author, onPress, s, theme, L }) {
   const budgetAmt = budget ? Number(budget.amount) : 0;
   const pct = budgetAmt > 0 ? (spent / budgetAmt) * 100 : 0;
   const isOver = budgetAmt > 0 && spent > budgetAmt;
@@ -83,6 +114,17 @@ function renderBudgetCard({ cat, scope, spent, budget, onPress, s, theme, L }) {
           </Text>
         </>
       )}
+      {scope === 'household' && author && budgetAmt > 0 && (
+        <View style={s.authorFooter}>
+          <AuthorBadge member={author} size="sm" />
+          <Text style={[s.authorText, { color: theme.subtext }]}>
+            {L.definedBy}{' '}
+            <Text style={{ color: author.color, fontWeight: '700' }}>
+              {author.display_name}
+            </Text>
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -92,7 +134,7 @@ export default function BudgetsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
-  const { household } = useHousehold();
+  const { household, members, getMemberById } = useHousehold();
   const userId = route?.params?.userId;
   const householdId = household?.id ?? null;
 
@@ -218,34 +260,39 @@ export default function BudgetsScreen({ route }) {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 12 }}>
           {/* Sección: Mis presupuestos */}
-          <Text style={s.sectionHeader}>
-            {household ? L.mySection.toUpperCase() : L.budgetsTitle.toUpperCase()}
-          </Text>
+          {household ? (
+            <SectionHeader icon="👤" title={L.mySection} subtitle={L.mySectionSub} theme={theme} />
+          ) : (
+            <Text style={s.sectionHeader}>{L.budgetsTitle.toUpperCase()}</Text>
+          )}
           {EXPENSE_CATEGORIES.map(cat =>
             renderBudgetCard({
               cat, scope: 'mine',
               spent: spentPrivateByCategory[cat.key] || 0,
               budget: getBudgetFor(cat.key, 'mine'),
+              author: null, // privadas no muestran autor
               onPress: () => openEdit(cat, 'mine'),
               s, theme, L,
             })
           )}
 
-          {/* Sección: Presupuestos del hogar */}
+          {/* Sección: Presupuestos del grupo */}
           {household && (
             <>
-              <Text style={[s.sectionHeader, { marginTop: 20 }]}>
-                {L.hhSection.toUpperCase()} — {household.name.toUpperCase()}
-              </Text>
-              {EXPENSE_CATEGORIES.map(cat =>
-                renderBudgetCard({
+              <View style={{ height: 6 }} />
+              <SectionHeader icon="👥" title={L.hhSection} subtitle={household.name} theme={theme} />
+              {EXPENSE_CATEGORIES.map(cat => {
+                const budget = getBudgetFor(cat.key, 'household');
+                const author = budget?.created_by ? getMemberById(budget.created_by) : null;
+                return renderBudgetCard({
                   cat, scope: 'household',
                   spent: spentSharedByCategory[cat.key] || 0,
-                  budget: getBudgetFor(cat.key, 'household'),
+                  budget,
+                  author,
                   onPress: () => openEdit(cat, 'household'),
                   s, theme, L,
-                })
-              )}
+                });
+              })}
             </>
           )}
         </ScrollView>
@@ -353,6 +400,12 @@ function createStyles(t) {
     progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
     progressFill: { height: 6, borderRadius: 3 },
     remainingText: { fontSize: 12, fontWeight: '600', marginTop: 6, textAlign: 'right' },
+    authorFooter: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      marginTop: 10, paddingTop: 8,
+      borderTopWidth: 1, borderTopColor: t.divider,
+    },
+    authorText: { fontSize: 12, fontWeight: '500' },
     modal: { flex: 1, padding: 24, paddingTop: 12 },
     handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#e4ede8', marginBottom: 24 },
     modalTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 28 },

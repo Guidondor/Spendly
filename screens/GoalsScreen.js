@@ -11,12 +11,42 @@ import { getGoals, addGoal, updateGoalSaved, deleteGoal } from '../services/goal
 import { LABELS } from '../constants/i18n';
 import { formatMoney } from '../services/format';
 import { useHousehold } from '../components/HouseholdProvider';
+import AuthorBadge from '../components/AuthorBadge';
+
+function SectionHeader({ icon, title, subtitle, theme }) {
+  return (
+    <View style={shStyle.row}>
+      <View style={[shStyle.iconWrap, { backgroundColor: theme.input }]}>
+        <Text style={shStyle.icon}>{icon}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[shStyle.title, { color: theme.text }]}>{title.toUpperCase()}</Text>
+        {subtitle ? (
+          <Text style={[shStyle.subtitle, { color: theme.subtext }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const shStyle = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginTop: 4, marginBottom: 8, paddingHorizontal: 2,
+  },
+  iconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  icon: { fontSize: 16 },
+  title: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8 },
+  subtitle: { fontSize: 11, fontWeight: '500', marginTop: 2 },
+});
 
 
 const GOAL_ICONS = ['🎯', '🏠', '✈️', '🚗', '💻', '📱', '🎓', '💍', '🏖️', '💰'];
 const GOAL_COLORS = ['#16a34a', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#e11d48'];
 
-function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
+function GoalCard({ goal, theme, onUpdate, onDelete, L, author }) {
   const pct = Math.min((goal.saved / goal.target) * 100, 100);
   const isComplete = goal.saved >= goal.target;
   const [updateModal, setUpdateModal] = useState(false);
@@ -102,6 +132,18 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L }) {
             {' · '}{L.goalRemaining}: {formatMoney(Math.max(0, goal.target - goal.saved))}
           </Text>
         </View>
+
+        {author && (
+          <View style={s.authorFooter}>
+            <AuthorBadge member={author} size="sm" />
+            <Text style={[s.authorText, { color: theme.subtext }]}>
+              {L.definedBy}{' '}
+              <Text style={{ color: author.color, fontWeight: '700' }}>
+                {author.display_name}
+              </Text>
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       <Modal
@@ -161,7 +203,7 @@ export default function GoalsScreen({ route }) {
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert } = useAlert();
-  const { household } = useHousehold();
+  const { household, getMemberById } = useHousehold();
   const userId = route?.params?.userId;
   const householdId = household?.id ?? null;
 
@@ -259,15 +301,18 @@ export default function GoalsScreen({ route }) {
           ) : null}
 
           {/* Mis metas */}
-          <Text style={s.sectionHeader}>
-            {household ? L.myGoals.toUpperCase() : L.goalsTitle.toUpperCase()}
-          </Text>
+          {household ? (
+            <SectionHeader icon="👤" title={L.myGoals} subtitle={L.myGoalsSub} theme={theme} />
+          ) : (
+            <Text style={s.sectionHeader}>{L.goalsTitle.toUpperCase()}</Text>
+          )}
           {privateGoals.map(goal => (
             <GoalCard
               key={goal.id}
               goal={goal}
               theme={theme}
               L={L}
+              author={null}
               onUpdate={updated => setGoals(g => g.map(gl => gl.id === updated.id ? updated : gl))}
               onDelete={handleDelete}
             />
@@ -276,18 +321,18 @@ export default function GoalsScreen({ route }) {
             <Text style={s.addGoalBtnText}>+ {L.addGoal}</Text>
           </TouchableOpacity>
 
-          {/* Metas del hogar */}
+          {/* Metas del grupo */}
           {household && (
             <>
-              <Text style={[s.sectionHeader, { marginTop: 16 }]}>
-                {L.hhGoals.toUpperCase()} — {household.name.toUpperCase()}
-              </Text>
+              <View style={{ height: 6 }} />
+              <SectionHeader icon="👥" title={L.hhGoals} subtitle={household.name} theme={theme} />
               {sharedGoals.map(goal => (
                 <GoalCard
                   key={goal.id}
                   goal={goal}
                   theme={theme}
                   L={L}
+                  author={goal.created_by ? getMemberById(goal.created_by) : null}
                   onUpdate={updated => setGoals(g => g.map(gl => gl.id === updated.id ? updated : gl))}
                   onDelete={handleDelete}
                 />
@@ -409,6 +454,12 @@ function createStyles(t) {
     savedRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, flexWrap: 'wrap' },
     savedText: { fontSize: 12, fontWeight: '700' },
     remainingText: { fontSize: 12, fontWeight: '500' },
+    authorFooter: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      marginTop: 10, paddingTop: 8,
+      borderTopWidth: 1, borderTopColor: t.divider,
+    },
+    authorText: { fontSize: 12, fontWeight: '500' },
     addGoalBtn: {
       borderWidth: 1.5, borderColor: t.accent, borderStyle: 'dashed',
       borderRadius: 16, paddingVertical: 16, alignItems: 'center',
