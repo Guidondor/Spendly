@@ -367,7 +367,7 @@ export default function GoalsScreen({ route }) {
             <Text style={[s.modalLabel, { color: theme.label }]}>{L.goalName}</Text>
             <TextInput
               style={[s.input, { backgroundColor: theme.input, borderColor: theme.inputBorder, color: theme.inputText }]}
-              placeholder="ej: Viaje a Europa"
+              placeholder={L.goalNamePlaceholder}
               placeholderTextColor={theme.placeholderText}
               value={goalName}
               onChangeText={setGoalName}
@@ -383,7 +383,7 @@ export default function GoalsScreen({ route }) {
               onChangeText={setGoalTarget}
             />
 
-            <Text style={[s.modalLabel, { color: theme.label }]}>Ícono</Text>
+            <Text style={[s.modalLabel, { color: theme.label }]}>{L.iconLabel}</Text>
             <View style={s.iconGrid}>
               {GOAL_ICONS.map(ic => (
                 <TouchableOpacity
@@ -396,7 +396,7 @@ export default function GoalsScreen({ route }) {
               ))}
             </View>
 
-            <Text style={[s.modalLabel, { color: theme.label }]}>Color</Text>
+            <Text style={[s.modalLabel, { color: theme.label }]}>{L.colorLabel}</Text>
             <View style={s.colorGrid}>
               {GOAL_COLORS.map(col => (
                 <TouchableOpacity

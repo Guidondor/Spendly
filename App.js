@@ -159,7 +159,12 @@ function RootNavigator() {
       if (mounted) setSession(session ?? null);
     });
 
-    AsyncStorage.getItem('onboarding_done').then(val => { if (mounted) setOnboardingDone(val === '1'); });
+    AsyncStorage.getItem('onboarding_done')
+      .then(val => { if (mounted) setOnboardingDone(val === '1'); })
+      .catch(e => {
+        if (__DEV__) console.warn('[App] AsyncStorage onboarding_done failed:', e?.message || e);
+        if (mounted) setOnboardingDone(false);
+      });
 
     // Start auto-refresh si app está activa al montar.
     if (AppState.currentState === 'active') {

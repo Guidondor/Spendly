@@ -192,7 +192,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
             <View style={s.descRow}>
               <TextInput
                 style={[s.input, { flex: 1 }]}
-                placeholder="ej: McDonald's, sueldo, SUBE..."
+                placeholder={L.descPlaceholder}
                 placeholderTextColor={theme.subtext}
                 value={description}
                 onChangeText={setDescription}
@@ -308,7 +308,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
             {/* Guardar */}
             {!isEditing && isRecurring && (
               <Text style={[s.recurringWarning, { color: theme.accent }]}>
-                Se repetirá automáticamente el día {dayOfMonth} de cada mes
+                {L.recurringWarningTpl.replace('{day}', dayOfMonth)}
               </Text>
             )}
             <TouchableOpacity
@@ -320,7 +320,11 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
               {saving
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={s.saveBtnText}>
-                    {isEditing ? L.saveChanges : isRecurring ? `Guardar como recurrente (día ${dayOfMonth})` : L.save}
+                    {isEditing
+                      ? L.saveChanges
+                      : isRecurring
+                        ? L.saveRecurringTpl.replace('{day}', dayOfMonth)
+                        : L.save}
                   </Text>}
             </TouchableOpacity>
           </ScrollView>

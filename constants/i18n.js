@@ -247,6 +247,27 @@ export const LABELS = {
     memberPlural:          'miembros',
     privacyPolicyLink:     'Política de Privacidad',
     signOutOk:             'Salir',
+
+    // AddTransactionModal — placeholders y warnings
+    descPlaceholder:       'ej: McDonald\'s, sueldo, SUBE...',
+    recurringWarningTpl:   'Se repetirá automáticamente el día {day} de cada mes',
+    saveRecurringTpl:      'Guardar como recurrente (día {day})',
+
+    // GoalsScreen — modal "Nueva meta"
+    goalNamePlaceholder:   'ej: Viaje a Europa',
+    iconLabel:             'Ícono',
+    colorLabel:            'Color',
+
+    // HistoryModal
+    historyTitle:          'Resumen histórico',
+    noHistoryYearTpl:      'Sin movimientos en {year}',
+    totalYearTpl:          'Total {year}',
+
+    // RecurringModal
+    recurringHeaderTitle:  'Gastos recurrentes',
+    recurringHeaderSub:    'Se crean automáticamente al abrir la app cada mes.',
+    recurringEmptyText:    'Sin recurrentes aún.\nActivá el toggle al guardar un movimiento.',
+    recurringDayLabelTpl:  'Día {day}',
   },
 
   en: {
@@ -497,6 +518,27 @@ export const LABELS = {
     memberPlural:          'members',
     privacyPolicyLink:     'Privacy Policy',
     signOutOk:             'Sign out',
+
+    // AddTransactionModal — placeholders & warnings
+    descPlaceholder:       'e.g. McDonald\'s, salary, metro card...',
+    recurringWarningTpl:   'It will repeat automatically on day {day} of every month',
+    saveRecurringTpl:      'Save as recurring (day {day})',
+
+    // GoalsScreen — "New goal" modal
+    goalNamePlaceholder:   'e.g. Trip to Europe',
+    iconLabel:             'Icon',
+    colorLabel:            'Color',
+
+    // HistoryModal
+    historyTitle:          'Historical summary',
+    noHistoryYearTpl:      'No transactions in {year}',
+    totalYearTpl:          'Total {year}',
+
+    // RecurringModal
+    recurringHeaderTitle:  'Recurring expenses',
+    recurringHeaderSub:    'Created automatically when you open the app each month.',
+    recurringEmptyText:    'No recurring entries yet.\nTurn on the toggle when saving a transaction.',
+    recurringDayLabelTpl:  'Day {day}',
   },
 };
 

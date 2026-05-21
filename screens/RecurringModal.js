@@ -64,13 +64,13 @@ export default function RecurringModal({ visible, onClose, userId }) {
       <View style={[s.container, { backgroundColor: theme.card }]}>
         <View style={s.handle} />
         <View style={s.header}>
-          <Text style={s.title}>🔄 Gastos recurrentes</Text>
+          <Text style={s.title}>🔄 {L.recurringHeaderTitle}</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={[s.closeBtn, { color: theme.subtext }]}>✕</Text>
           </TouchableOpacity>
         </View>
         <Text style={[s.subtitle, { color: theme.subtext }]}>
-          Se crean automáticamente al abrir la app cada mes.
+          {L.recurringHeaderSub}
         </Text>
 
         {loading ? (
@@ -79,7 +79,7 @@ export default function RecurringModal({ visible, onClose, userId }) {
           <View style={s.empty}>
             <Text style={{ fontSize: 48 }}>🔄</Text>
             <Text style={[s.emptyText, { color: theme.subtext }]}>
-              Sin recurrentes aún.{'\n'}Activá el toggle al guardar un movimiento.
+              {L.recurringEmptyText}
             </Text>
           </View>
         ) : (
@@ -101,7 +101,7 @@ export default function RecurringModal({ visible, onClose, userId }) {
                   <View style={s.info}>
                     <Text style={[s.desc, { color: theme.text }]} numberOfLines={1}>{item.description}</Text>
                     <Text style={[s.meta, { color: theme.subtext }]} numberOfLines={1}>
-                      {isShared ? `👥 ${L.pillHh} · ` : ''}{cat.name} · Día {item.day_of_month}
+                      {isShared ? `👥 ${L.pillHh} · ` : ''}{cat.name} · {L.recurringDayLabelTpl.replace('{day}', item.day_of_month)}
                       {isShared && owner ? ` · ${owner.display_name}` : ''}
                     </Text>
                   </View>

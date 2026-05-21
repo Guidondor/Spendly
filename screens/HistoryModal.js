@@ -7,13 +7,9 @@ import { getTransactionsByYear } from '../services/transactions';
 import { useTheme } from '../services/theme';
 import { formatMoney } from '../services/format';
 import { useHousehold } from '../components/HouseholdProvider';
+import { LABELS, MONTHS } from '../constants/i18n';
 
-const MONTHS_ES = [
-  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
-];
-
-function groupByMonth(transactions) {
+function groupByMonth(transactions, monthNames) {
   const byMonth = {};
   transactions.forEach(tx => {
     const m = parseInt(tx.date.split('-')[1], 10);
@@ -27,7 +23,7 @@ function groupByMonth(transactions) {
     if (byMonth[m]) {
       result.push({
         month: m,
-        label: MONTHS_ES[m - 1],
+        label: monthNames[m - 1],
         income:  byMonth[m].income,
         expense: byMonth[m].expense,
         balance: byMonth[m].income - byMonth[m].expense,
@@ -38,7 +34,8 @@ function groupByMonth(transactions) {
 }
 
 export default function HistoryModal({ visible, onClose, userId }) {
-  const { theme } = useTheme();
+  const { theme, lang } = useTheme();
+  const L = LABELS[lang];
   const { household } = useHousehold();
   const householdId = household?.id ?? null;
   const currentYear = new Date().getFullYear();
@@ -64,7 +61,7 @@ export default function HistoryModal({ visible, onClose, userId }) {
     }
   }
 
-  const monthlyData = useMemo(() => groupByMonth(transactions), [transactions]);
+  const monthlyData = useMemo(() => groupByMonth(transactions, MONTHS[lang]), [transactions, lang]);
 
   const totalIncome  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
@@ -80,7 +77,7 @@ export default function HistoryModal({ visible, onClose, userId }) {
 
         {/* Cabecera */}
         <View style={s.titleRow}>
-          <Text style={s.title}>📊 Resumen histórico</Text>
+          <Text style={s.title}>📊 {L.historyTitle}</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={s.closeBtn}>✕</Text>
           </TouchableOpacity>
@@ -104,20 +101,20 @@ export default function HistoryModal({ visible, onClose, userId }) {
         {/* Totales anuales */}
         {!loading && transactions.length > 0 && (
           <View style={s.annualCard}>
-            <Text style={s.annualTitle}>Total {year}</Text>
+            <Text style={s.annualTitle}>{L.totalYearTpl.replace('{year}', year)}</Text>
             <Text style={[s.annualBalance, { color: totalBalance >= 0 ? theme.income : theme.expense }]}>
               {totalBalance >= 0 ? '' : '-'}{formatMoney(totalBalance)}
             </Text>
             <View style={s.annualRow}>
               <View style={s.annualItem}>
                 <Text style={[s.annualArrow, { color: theme.income }]}>↑</Text>
-                <Text style={s.annualSub}>Ingresos</Text>
+                <Text style={s.annualSub}>{L.income}</Text>
                 <Text style={[s.annualVal, { color: theme.income }]}>{formatMoney(totalIncome)}</Text>
               </View>
               <View style={[s.annualDivider]} />
               <View style={s.annualItem}>
                 <Text style={[s.annualArrow, { color: theme.expense }]}>↓</Text>
-                <Text style={s.annualSub}>Gastos</Text>
+                <Text style={s.annualSub}>{L.expenses}</Text>
                 <Text style={[s.annualVal, { color: theme.expense }]}>{formatMoney(totalExpense)}</Text>
               </View>
             </View>
@@ -130,7 +127,7 @@ export default function HistoryModal({ visible, onClose, userId }) {
         ) : monthlyData.length === 0 ? (
           <View style={s.empty}>
             <Text style={s.emptyEmoji}>🗓️</Text>
-            <Text style={s.emptyText}>Sin movimientos en {year}</Text>
+            <Text style={s.emptyText}>{L.noHistoryYearTpl.replace('{year}', year)}</Text>
           </View>
         ) : (
           <FlatList

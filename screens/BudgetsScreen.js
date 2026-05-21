@@ -9,7 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../services/theme';
 import { getTransactions } from '../services/transactions';
 import { getBudgets, setBudget } from '../services/budgets';
-import { EXPENSE_CATEGORIES, CategoryIcon } from '../services/categories';
+import { EXPENSE_CATEGORIES, CategoryIcon, getCategoryByKey } from '../services/categories';
 import { LABELS, MONTHS } from '../constants/i18n';
 import { formatMoney } from '../services/format';
 import { useHousehold } from '../components/HouseholdProvider';
@@ -189,6 +189,12 @@ export default function BudgetsScreen({ route }) {
     return map;
   }, [transactions]);
 
+  // Categorías con nombre traducido al idioma actual.
+  const localizedCategories = useMemo(
+    () => EXPENSE_CATEGORIES.map(c => ({ ...c, name: getCategoryByKey(c.key, lang).name })),
+    [lang]
+  );
+
   function getBudgetFor(catKey, scope) {
     if (scope === 'household') {
       return budgets.find(b => b.category === catKey && b.household_id === householdId);
@@ -265,7 +271,7 @@ export default function BudgetsScreen({ route }) {
           ) : (
             <Text style={s.sectionHeader}>{L.budgetsTitle.toUpperCase()}</Text>
           )}
-          {EXPENSE_CATEGORIES.map(cat =>
+          {localizedCategories.map(cat =>
             renderBudgetCard({
               cat, scope: 'mine',
               spent: spentPrivateByCategory[cat.key] || 0,
@@ -281,7 +287,7 @@ export default function BudgetsScreen({ route }) {
             <>
               <View style={{ height: 6 }} />
               <SectionHeader icon="👥" title={L.hhSection} subtitle={household.name} theme={theme} />
-              {EXPENSE_CATEGORIES.map(cat => {
+              {localizedCategories.map(cat => {
                 const budget = getBudgetFor(cat.key, 'household');
                 const author = budget?.created_by ? getMemberById(budget.created_by) : null;
                 return renderBudgetCard({

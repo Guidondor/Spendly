@@ -109,7 +109,7 @@ export default function ChartsScreen({ route }) {
         return { key, name: cat.name, color: cat.color, amount };
       })
       .sort((a, b) => b.amount - a.amount);
-  }, [expenses]);
+  }, [expenses, lang]);
 
   // Solo cuando hay grupo: por categoría, agrupa gasto por user_id.
   // Devuelve un map { [catKey]: [{ member, amount }, ...] } ordenado por monto.
