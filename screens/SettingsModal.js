@@ -26,6 +26,7 @@ async function clearAIInsightCache() {
 
 export default function SettingsModal({ visible, onClose, session }) {
   const { theme, isDark, toggleTheme, lang, setLang } = useTheme();
+  const L = LABELS[lang] || LABELS.es;
   const { confirm } = useAlert();
   const { household, members } = useHousehold();
   const [deleteError, setDeleteError] = useState('');
@@ -34,17 +35,17 @@ export default function SettingsModal({ visible, onClose, session }) {
   const s = createStyles(theme);
 
   const email = session?.user?.email ?? '';
-  const displayName = email.split('@')[0] || 'Usuario';
+  const displayName = email.split('@')[0] || L.defaultUserName;
   const initial = displayName[0]?.toUpperCase() ?? 'U';
 
   function handleLogout() {
     onClose();
     confirm({
-      title: lang === 'es' ? 'Cerrar sesión' : 'Sign out',
-      message: lang === 'es' ? '¿Seguro que querés salir?' : 'Are you sure you want to sign out?',
+      title: L.logout,
+      message: L.logoutConfirm,
       buttons: [
-        { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel' },
-        { text: lang === 'es' ? 'Salir' : 'Sign out', style: 'destructive', onPress: async () => {
+        { text: L.cancel, style: 'cancel' },
+        { text: L.signOutOk, style: 'destructive', onPress: async () => {
           await clearAIInsightCache();
           await supabase.auth.signOut({ scope: 'local' });
         } },
@@ -53,17 +54,13 @@ export default function SettingsModal({ visible, onClose, session }) {
   }
 
   async function handleDeleteAccount() {
-    const msg = lang === 'es'
-      ? '¿Eliminar tu cuenta y todos tus datos? Esta acción es irreversible.'
-      : 'Delete your account and all data? This action cannot be undone.';
-
     const confirmed = await new Promise(resolve =>
       confirm({
-        title: lang === 'es' ? 'Eliminar cuenta' : 'Delete account',
-        message: msg,
+        title: L.deleteAccountTitle,
+        message: L.deleteAccountWarning,
         buttons: [
-          { text: lang === 'es' ? 'Cancelar' : 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: lang === 'es' ? 'Eliminar' : 'Delete', style: 'destructive', onPress: () => resolve(true) },
+          { text: L.cancel, style: 'cancel', onPress: () => resolve(false) },
+          { text: L.deleteAccountConfirmBtn, style: 'destructive', onPress: () => resolve(true) },
         ],
       })
     );
@@ -78,7 +75,6 @@ export default function SettingsModal({ visible, onClose, session }) {
       await supabase.auth.signOut({ scope: 'local' });
     } catch (e) {
       if (__DEV__) console.warn('[SettingsModal] delete_user_account failed:', e?.message || e);
-      const L = LABELS[lang] || LABELS.es;
       setDeleteError(L.deleteAccountError);
       setDeleting(false);
     }
@@ -91,14 +87,14 @@ export default function SettingsModal({ visible, onClose, session }) {
 
         {/* Header */}
         <View style={s.titleRow}>
-          <Text style={s.title}>{lang === 'es' ? 'Ajustes' : 'Settings'}</Text>
+          <Text style={s.title}>{L.settings}</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={s.closeBtn}>✕</Text>
           </TouchableOpacity>
         </View>
 
         {/* Cuenta */}
-        <Text style={s.sectionLabel}>{lang === 'es' ? 'CUENTA' : 'ACCOUNT'}</Text>
+        <Text style={s.sectionLabel}>{L.account.toUpperCase()}</Text>
         <View style={s.accountRow}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>{initial}</Text>
@@ -110,10 +106,10 @@ export default function SettingsModal({ visible, onClose, session }) {
         </View>
 
         {/* Apariencia */}
-        <Text style={s.sectionLabel}>{lang === 'es' ? 'APARIENCIA' : 'APPEARANCE'}</Text>
+        <Text style={s.sectionLabel}>{L.appearance.toUpperCase()}</Text>
         <View style={s.row}>
           <Text style={s.rowIcon}>🌙</Text>
-          <Text style={s.rowLabel}>{lang === 'es' ? 'Modo oscuro' : 'Dark mode'}</Text>
+          <Text style={s.rowLabel}>{L.darkMode}</Text>
           <Switch
             value={isDark}
             onValueChange={toggleTheme}
@@ -123,7 +119,7 @@ export default function SettingsModal({ visible, onClose, session }) {
         </View>
 
         {/* Grupo compartido */}
-        <Text style={s.sectionLabel}>{(LABELS[lang].sharedGroup || 'Grupo compartido').toUpperCase()}</Text>
+        <Text style={s.sectionLabel}>{L.sharedGroup.toUpperCase()}</Text>
         <TouchableOpacity
           style={s.row}
           onPress={() => setHouseholdVisible(true)}
@@ -132,15 +128,11 @@ export default function SettingsModal({ visible, onClose, session }) {
           <Text style={s.rowIcon}>👥</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.rowLabel}>
-              {household
-                ? household.name
-                : (lang === 'es' ? 'Crear o unirse a un grupo' : 'Create or join a group')}
+              {household ? household.name : L.createOrJoinGroup}
             </Text>
             {household && (
               <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 2 }}>
-                {members.length} {lang === 'es'
-                  ? (members.length === 1 ? 'miembro' : 'miembros')
-                  : (members.length === 1 ? 'member' : 'members')}
+                {members.length} {members.length === 1 ? L.memberSingular : L.memberPlural}
               </Text>
             )}
           </View>
@@ -148,7 +140,7 @@ export default function SettingsModal({ visible, onClose, session }) {
         </TouchableOpacity>
 
         {/* Idioma */}
-        <Text style={s.sectionLabel}>{lang === 'es' ? 'IDIOMA' : 'LANGUAGE'}</Text>
+        <Text style={s.sectionLabel}>{L.language.toUpperCase()}</Text>
         <View style={s.langRow}>
           <TouchableOpacity
             style={[s.langBtn, lang === 'es' && s.langBtnActive]}
@@ -167,7 +159,7 @@ export default function SettingsModal({ visible, onClose, session }) {
         {/* Cerrar sesión */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
           <Text style={s.logoutIcon}>🚪</Text>
-          <Text style={s.logoutText}>{lang === 'es' ? 'Cerrar sesión' : 'Sign out'}</Text>
+          <Text style={s.logoutText}>{L.logout}</Text>
         </TouchableOpacity>
 
         {/* Eliminar cuenta */}
@@ -179,18 +171,14 @@ export default function SettingsModal({ visible, onClose, session }) {
         >
           <Text style={s.deleteIcon}>🗑️</Text>
           <Text style={s.deleteText}>
-            {deleting
-              ? (lang === 'es' ? 'Eliminando...' : 'Deleting...')
-              : (lang === 'es' ? 'Eliminar cuenta' : 'Delete account')}
+            {deleting ? L.deletingAccount : L.deleteAccountBtn}
           </Text>
         </TouchableOpacity>
         {!!deleteError && <Text style={s.deleteError}>{deleteError}</Text>}
 
         {/* Privacy Policy */}
         <TouchableOpacity style={s.privacyLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
-          <Text style={s.privacyText}>
-            {lang === 'es' ? 'Política de Privacidad' : 'Privacy Policy'}
-          </Text>
+          <Text style={s.privacyText}>{L.privacyPolicyLink}</Text>
         </TouchableOpacity>
       </View>
 

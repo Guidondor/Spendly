@@ -91,8 +91,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   }
 
   async function handleCreate() {
-    if (!hhName.trim()) { alert('Error', lang === 'es' ? 'Poné un nombre al grupo' : 'Enter a group name'); return; }
-    if (!displayName.trim()) { alert('Error', lang === 'es' ? 'Poné tu nombre' : 'Enter your name'); return; }
+    if (!hhName.trim()) { alert('Error', L.groupNameRequired); return; }
+    if (!displayName.trim()) { alert('Error', L.yourNameRequired); return; }
     setSubmitting(true);
     try {
       await createHousehold({ name: hhName.trim(), displayName: displayName.trim(), color });
@@ -107,8 +107,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
 
   async function handleJoin() {
     const c = code.trim().toUpperCase();
-    if (c.length !== 6) { alert('Error', lang === 'es' ? 'El código tiene 6 caracteres' : 'Code is 6 characters'); return; }
-    if (!joinDisplay.trim()) { alert('Error', lang === 'es' ? 'Poné tu nombre' : 'Enter your name'); return; }
+    if (c.length !== 6) { alert('Error', L.codeMustBe6Chars); return; }
+    if (!joinDisplay.trim()) { alert('Error', L.yourNameRequired); return; }
     setSubmitting(true);
     try {
       await joinHousehold({ code: c, displayName: joinDisplay.trim(), color: joinColor });
@@ -214,7 +214,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
       buttons: [
         { text: L.cancel, style: 'cancel' },
         {
-          text: lang === 'es' ? 'Salir' : 'Leave', style: 'destructive',
+          text: L.signOutOk, style: 'destructive',
           onPress: async () => {
             setSubmitting(true);
             try {
@@ -234,11 +234,11 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   function expiryLabel() {
     if (!household?.invite_expires_at) return '';
     const ms = new Date(household.invite_expires_at).getTime() - Date.now();
-    if (ms <= 0) return lang === 'es' ? 'Expirado' : 'Expired';
+    if (ms <= 0) return L.expiredLabel;
     const hrs = Math.floor(ms / 3600000);
     const mins = Math.floor((ms % 3600000) / 60000);
-    if (hrs >= 1) return lang === 'es' ? `Expira en ${hrs}h ${mins}m` : `Expires in ${hrs}h ${mins}m`;
-    return lang === 'es' ? `Expira en ${mins}m` : `Expires in ${mins}m`;
+    if (hrs >= 1) return L.expiresInHrsTpl.replace('{h}', hrs).replace('{m}', mins);
+    return L.expiresInMinsTpl.replace('{m}', mins);
   }
 
   function renderActiveHousehold() {
@@ -277,7 +277,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={s.shareBtnText}>
-                {expired ? L.newCodeBtn : (lang === 'es' ? 'Compartir' : 'Share')}
+                {expired ? L.newCodeBtn : L.shareBtn}
               </Text>
             )}
           </TouchableOpacity>
@@ -463,7 +463,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
     return (
       <>
         <TouchableOpacity onPress={() => setView('menu')} style={s.backRow}>
-          <Text style={s.backText}>‹ {lang === 'es' ? 'Volver' : 'Back'}</Text>
+          <Text style={s.backText}>‹ {L.backBtn}</Text>
         </TouchableOpacity>
 
         <Text style={s.label}>{L.groupName}</Text>
@@ -479,7 +479,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
         <Text style={s.label}>{L.yourNameInGroup}</Text>
         <TextInput
           style={s.input}
-          placeholder={lang === 'es' ? 'ej: Guido' : 'e.g. Guido'}
+          placeholder={L.egGuido}
           placeholderTextColor={theme.placeholderText}
           value={displayName}
           onChangeText={setDisplayName}
@@ -504,7 +504,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
     return (
       <>
         <TouchableOpacity onPress={() => setView('menu')} style={s.backRow}>
-          <Text style={s.backText}>‹ {lang === 'es' ? 'Volver' : 'Back'}</Text>
+          <Text style={s.backText}>‹ {L.backBtn}</Text>
         </TouchableOpacity>
 
         <Text style={s.label}>{L.groupCodeLabel}</Text>
@@ -522,7 +522,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
         <Text style={s.label}>{L.yourNameInGroup}</Text>
         <TextInput
           style={s.input}
-          placeholder={lang === 'es' ? 'ej: Estefi' : 'e.g. Steph'}
+          placeholder={L.egEstefi}
           placeholderTextColor={theme.placeholderText}
           value={joinDisplay}
           onChangeText={setJoinDisplay}

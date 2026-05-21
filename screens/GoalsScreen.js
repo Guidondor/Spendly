@@ -58,7 +58,7 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L, author }) {
   async function handleUpdate(delta) {
     const parsed = parseFloat(addInput.replace(',', '.'));
     if (!addInput || isNaN(parsed) || parsed <= 0) {
-      alert('Monto inválido', 'Ingresá un número mayor a cero');
+      alert(L.invalidAmount, L.amountRequired);
       return;
     }
     setSaving(true);
@@ -69,7 +69,7 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L, author }) {
       setUpdateModal(false);
       setAddInput('');
     } catch {
-      alert('Error', 'No se pudo actualizar la meta');
+      alert('Error', L.goalUpdateError);
     } finally {
       setSaving(false);
     }
@@ -77,11 +77,11 @@ function GoalCard({ goal, theme, onUpdate, onDelete, L, author }) {
 
   function confirmDelete() {
     confirm({
-      title: 'Eliminar meta',
-      message: `¿Eliminás "${goal.name}"?`,
+      title: L.deleteGoal,
+      message: `${L.deleteGoalConfirm} "${goal.name}"?`,
       buttons: [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => onDelete(goal.id) },
+        { text: L.cancel, style: 'cancel' },
+        { text: L.deleteBtn, style: 'destructive', onPress: () => onDelete(goal.id) },
       ],
     });
   }
@@ -243,9 +243,9 @@ export default function GoalsScreen({ route }) {
   }
 
   async function handleAdd() {
-    if (!goalName.trim()) { alert('Error', 'Poné un nombre'); return; }
+    if (!goalName.trim()) { alert('Error', L.goalNameRequired); return; }
     const parsed = parseFloat(goalTarget.replace(',', '.'));
-    if (!goalTarget || isNaN(parsed) || parsed <= 0) { alert('Error', 'Ingresá un monto mayor a cero'); return; }
+    if (!goalTarget || isNaN(parsed) || parsed <= 0) { alert('Error', L.amountRequired); return; }
     setSaving(true);
     try {
       const newGoal = await addGoal({
@@ -261,7 +261,7 @@ export default function GoalsScreen({ route }) {
       setGoalName('');
       setGoalTarget('');
     } catch {
-      alert('Error', 'No se pudo crear la meta');
+      alert('Error', L.goalAddError);
     } finally {
       setSaving(false);
     }
@@ -272,7 +272,7 @@ export default function GoalsScreen({ route }) {
       await deleteGoal(id);
       setGoals(g => g.filter(gl => gl.id !== id));
     } catch {
-      alert('Error', 'No se pudo eliminar');
+      alert('Error', L.goalDeleteError);
     }
   }
 
@@ -295,8 +295,8 @@ export default function GoalsScreen({ route }) {
           {goals.length === 0 && !household ? (
             <View style={s.empty}>
               <Text style={{ fontSize: 56 }}>🎯</Text>
-              <Text style={[s.emptyTitle, { color: theme.subtext }]}>Sin metas aún</Text>
-              <Text style={[s.emptyHint, { color: theme.emptyText }]}>Agregá tu primera meta abajo</Text>
+              <Text style={[s.emptyTitle, { color: theme.subtext }]}>{L.goalEmptyTitle}</Text>
+              <Text style={[s.emptyHint, { color: theme.emptyText }]}>{L.goalEmptyHint}</Text>
             </View>
           ) : null}
 

@@ -89,7 +89,7 @@ export default function ChartsScreen({ route }) {
       setLoading(true);
       getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1, householdId)
         .then(data => setTransactions(data))
-        .catch(() => alert('Error', 'No se pudieron cargar los movimientos.'))
+        .catch(() => alert('Error', L.txLoadFailed))
         .finally(() => setLoading(false));
     }, [userId, viewDate, householdId])
   );
@@ -283,7 +283,7 @@ function MonthlyBars({ userId, householdId, theme, currentDate, lang }) {
             return { ...m, income: inc, expense: exp };
           }));
         })
-        .catch(() => alert('Error', 'No se pudieron cargar los datos mensuales.'))
+        .catch(() => alert('Error', L.monthlyDataLoadFailed))
         .finally(() => setLoading(false));
     }, [userId, householdId, currentDate])
   );

@@ -161,7 +161,7 @@ export default function BudgetsScreen({ route }) {
         getBudgets(userId, m, y, householdId),
       ])
         .then(([txs, bdgs]) => { setTransactions(txs); setBudgetsList(bdgs); })
-        .catch(() => alert('Error', 'No se pudieron cargar los presupuestos.'))
+        .catch(() => alert('Error', L.budgetsLoadFailed))
         .finally(() => setLoading(false));
     }, [userId, viewDate, householdId])
   );

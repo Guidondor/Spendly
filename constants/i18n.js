@@ -189,6 +189,64 @@ export const LABELS = {
     errorCantRemoveSelf:   'No podés eliminarte a vos mismo. Usá "Salir del grupo".',
     errorNotMember:        'Esa persona ya no es miembro del grupo.',
     errorUnauthorized:     'Sesión inválida, volvé a entrar.',
+
+    // Acciones genéricas
+    editBtn:               'Editar',
+    deleteBtn:             'Eliminar',
+    backBtn:               'Volver',
+    shareBtn:              'Compartir',
+
+    // HomeScreen — context menu + delete recurring
+    selectOption:          'Seleccioná una opción',
+    recurringTitle:        'Gasto recurrente',
+    recurringDeleteRuleQ:  '¿Querés eliminar también la regla para que no se recree el mes que viene?',
+    deleteThisMonth:       'No, solo este mes',
+    deleteRule:            'Eliminar regla',
+    deleteFailed:          'No se pudo eliminar.',
+    deleteRuleFailed:      'No se pudo eliminar la regla recurrente.',
+
+    // GoalsScreen
+    goalEmptyTitle:        'Sin metas aún',
+    goalEmptyHint:         'Agregá tu primera meta abajo',
+    goalNameRequired:      'Poné un nombre',
+
+    // BudgetsScreen
+    budgetsLoadFailed:     'No se pudieron cargar los presupuestos.',
+
+    // ChartsScreen
+    txLoadFailed:          'No se pudieron cargar los movimientos.',
+    monthlyDataLoadFailed: 'No se pudieron cargar los datos mensuales.',
+
+    // RecurringModal
+    deleteRecurringTitle:  'Eliminar recurrente',
+    deleteRecurringConfirmTpl: '¿Eliminás "{description}"?',
+
+    // HouseholdModal (validaciones + labels específicos)
+    groupNameRequired:     'Poné un nombre al grupo',
+    yourNameRequired:      'Poné tu nombre',
+    codeMustBe6Chars:      'El código tiene 6 caracteres',
+    egGuido:               'ej: Guido',
+    egEstefi:              'ej: Estefi',
+    egCasaBurak:           'ej: Casa Burak',
+    rotateBtn:             'Rotar',
+    generateNewBtn:        'Generar nuevo',
+    expiredLabel:          'Expirado',
+    expiresInHrsTpl:       'Expira en {h}h {m}m',
+    expiresInMinsTpl:      'Expira en {m}m',
+    sectionMembers:        'MIEMBROS',
+
+    // SettingsModal
+    defaultUserName:       'Usuario',
+    deleteAccountTitle:    'Eliminar cuenta',
+    deleteAccountConfirmBtn:'Eliminar',
+    deleteAccountWarning:  '¿Eliminar tu cuenta y todos tus datos? Esta acción es irreversible.',
+    deletingAccount:       'Eliminando...',
+    deleteAccountBtn:      'Eliminar cuenta',
+    createOrJoinGroup:     'Crear o unirse a un grupo',
+    memberSingular:        'miembro',
+    memberPlural:          'miembros',
+    privacyPolicyLink:     'Política de Privacidad',
+    signOutOk:             'Salir',
   },
 
   en: {
@@ -381,6 +439,64 @@ export const LABELS = {
     errorCantRemoveSelf:   'You cannot remove yourself. Use "Leave group" instead.',
     errorNotMember:        'That person is no longer in the group.',
     errorUnauthorized:     'Invalid session, please sign in again.',
+
+    // Generic actions
+    editBtn:               'Edit',
+    deleteBtn:             'Delete',
+    backBtn:               'Back',
+    shareBtn:              'Share',
+
+    // HomeScreen — context menu + delete recurring
+    selectOption:          'Choose an option',
+    recurringTitle:        'Recurring expense',
+    recurringDeleteRuleQ:  "Also delete the rule so it doesn't recreate next month?",
+    deleteThisMonth:       'No, just this month',
+    deleteRule:            'Delete rule',
+    deleteFailed:          'Could not delete.',
+    deleteRuleFailed:      'Could not delete the recurring rule.',
+
+    // GoalsScreen
+    goalEmptyTitle:        'No goals yet',
+    goalEmptyHint:         'Add your first goal below',
+    goalNameRequired:      'Enter a name',
+
+    // BudgetsScreen
+    budgetsLoadFailed:     'Could not load budgets.',
+
+    // ChartsScreen
+    txLoadFailed:          'Could not load transactions.',
+    monthlyDataLoadFailed: 'Could not load monthly data.',
+
+    // RecurringModal
+    deleteRecurringTitle:  'Delete recurring',
+    deleteRecurringConfirmTpl: 'Delete "{description}"?',
+
+    // HouseholdModal
+    groupNameRequired:     'Enter a group name',
+    yourNameRequired:      'Enter your name',
+    codeMustBe6Chars:      'Code must be 6 characters',
+    egGuido:               'e.g. Guido',
+    egEstefi:              'e.g. Steph',
+    egCasaBurak:           'e.g. Smith Home',
+    rotateBtn:             'Rotate',
+    generateNewBtn:        'Generate new',
+    expiredLabel:          'Expired',
+    expiresInHrsTpl:       'Expires in {h}h {m}m',
+    expiresInMinsTpl:      'Expires in {m}m',
+    sectionMembers:        'MEMBERS',
+
+    // SettingsModal
+    defaultUserName:       'User',
+    deleteAccountTitle:    'Delete account',
+    deleteAccountConfirmBtn:'Delete',
+    deleteAccountWarning:  'Delete your account and all data? This action cannot be undone.',
+    deletingAccount:       'Deleting...',
+    deleteAccountBtn:      'Delete account',
+    createOrJoinGroup:     'Create or join a group',
+    memberSingular:        'member',
+    memberPlural:          'members',
+    privacyPolicyLink:     'Privacy Policy',
+    signOutOk:             'Sign out',
   },
 };
 

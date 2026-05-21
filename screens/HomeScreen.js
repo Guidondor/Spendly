@@ -57,12 +57,12 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
   function showMenu() {
     const buttons = [];
     if (canEdit) {
-      buttons.push({ text: 'Editar', onPress: onEdit });
+      buttons.push({ text: L.editBtn, onPress: onEdit });
       buttons.push({
-        text: 'Eliminar', style: 'destructive',
+        text: L.deleteBtn, style: 'destructive',
         onPress: () => confirm({
           title: L.deleteTitle,
-          message: `¿Eliminás "${transaction.description}"?`,
+          message: L.deleteRecurringConfirmTpl.replace('{description}', transaction.description),
           buttons: [
             { text: L.cancel, style: 'cancel' },
             { text: L.deleteConfirm, style: 'destructive', onPress: onDelete },
@@ -74,7 +74,7 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
 
     confirm({
       title: transaction.description,
-      message: canEdit ? 'Seleccioná una opción' : L.txOfAnotherMember,
+      message: canEdit ? L.selectOption : L.txOfAnotherMember,
       buttons,
     });
   }
@@ -274,7 +274,7 @@ export default function HomeScreen({ session }) {
       setTransactions(data);
       hasDataRef.current = true;
     } catch {
-      alert('Error', 'No se pudieron cargar los movimientos.');
+      alert('Error', L.txLoadFailed);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -295,24 +295,23 @@ export default function HomeScreen({ session }) {
       setTransactions(prev => prev.filter(t => t.id !== tx.id));
 
       if (tx.recurring_id) {
-        const msg = '¿Querés eliminar también la regla para que no se recree el mes que viene?';
         confirm({
-          title: 'Gasto recurrente',
-          message: msg,
+          title: L.recurringTitle,
+          message: L.recurringDeleteRuleQ,
           buttons: [
-            { text: 'No, solo este mes', style: 'cancel' },
+            { text: L.deleteThisMonth, style: 'cancel' },
             {
-              text: 'Eliminar regla', style: 'destructive',
+              text: L.deleteRule, style: 'destructive',
               onPress: async () => {
                 try { await deleteRecurring(tx.recurring_id); }
-                catch { alert('Error', 'No se pudo eliminar la regla recurrente.'); }
+                catch { alert('Error', L.deleteRuleFailed); }
               },
             },
           ],
         });
       }
     } catch {
-      alert('Error', 'No se pudo eliminar.');
+      alert('Error', L.deleteFailed);
     }
   }
 

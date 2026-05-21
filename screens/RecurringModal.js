@@ -38,18 +38,18 @@ export default function RecurringModal({ visible, onClose, userId }) {
 
   function confirmDelete(item) {
     confirm({
-      title: 'Eliminar recurrente',
-      message: `¿Eliminás "${item.description}"? No se borrarán los movimientos ya creados.`,
+      title: L.deleteRecurringTitle,
+      message: L.deleteRecurringConfirmTpl.replace('{description}', item.description),
       buttons: [
         { text: L.cancel, style: 'cancel' },
         {
-          text: 'Eliminar', style: 'destructive',
+          text: L.deleteBtn, style: 'destructive',
           onPress: async () => {
             try {
               await deleteRecurring(item.id);
               setItems(prev => prev.filter(i => i.id !== item.id));
             } catch {
-              alert('Error', 'No se pudo eliminar');
+              alert('Error', L.deleteFailed);
             }
           },
         },
