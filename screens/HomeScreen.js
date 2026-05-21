@@ -351,7 +351,9 @@ export default function HomeScreen({ session }) {
     return `${L.balanceHh} — ${household.name}`;
   }, [household, scopeFilter, L]);
 
-  // Breakdown por miembro: agrupa expenses del scope actual por user_id
+  // Breakdown por miembro: agrupa expenses del scope actual por user_id.
+  // Se muestra siempre que haya grupo y al menos 1 gasto en el scope actual
+  // (el scope 'mine' lo omite porque solo son gastos privados sin grupo).
   const memberBreakdown = useMemo(() => {
     if (!household) return null;
     if (scopeFilter === 'mine') return null;
@@ -365,7 +367,7 @@ export default function HomeScreen({ session }) {
       .map(([mid, amt]) => ({ member: getMemberById(mid), amount: amt }))
       .filter(x => x.member && x.amount > 0)
       .sort((a, b) => b.amount - a.amount);
-    if (entries.length < 2) return null;
+    if (entries.length === 0) return null;
     const total = entries.reduce((s, x) => s + x.amount, 0);
     return { entries, total };
   }, [filteredTxs, household, scopeFilter, getMemberById]);
