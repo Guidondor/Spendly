@@ -128,21 +128,26 @@ export async function deleteHousehold() {
 // ─── Settle-up: cálculo cliente (no requiere RPC) ──────────────────────────────
 
 // Dado el conjunto de transacciones del mes y los miembros del grupo, devuelve
-// quién le debe cuánto a quién para que todos terminen pagando lo mismo. Usa un
-// algoritmo greedy: el creditor con más a cobrar recibe del debtor con más
-// para pagar, iterativamente.
+// el estado del settle-up con `state` siempre presente:
+//   'no_members'  → grupo con 1 solo miembro (todavía no aplica equilibrar)
+//   'no_expenses' → 2+ miembros pero sin gastos compartidos
+//   'even'        → 2+ miembros con gastos parejos (no hace falta transferir)
+//   'unbalanced'  → 2+ miembros con desequilibrio (transfers tiene datos)
 //
-// Retorna null si no aplica (sin grupo o <2 miembros). Si no hay gasto
-// compartido, devuelve { total: 0, fairShare: 0, balances: [], transfers: [] }.
+// Algoritmo greedy: el creditor con más a cobrar recibe del debtor con más
+// a pagar, iterativamente, hasta dejar todos los balances en 0.
 export function computeSettlement(transactions, members, householdId) {
-  if (!householdId || !Array.isArray(members) || members.length < 2) return null;
+  if (!householdId || !Array.isArray(members) || members.length === 0) return null;
+  if (members.length < 2) {
+    return { state: 'no_members', total: 0, fairShare: 0, balances: [], transfers: [] };
+  }
 
   const sharedExp = transactions.filter(
     tx => tx.type === 'expense' && tx.household_id === householdId
   );
   const totalSpent = sharedExp.reduce((s, tx) => s + Number(tx.amount), 0);
   if (totalSpent === 0) {
-    return { total: 0, fairShare: 0, balances: [], transfers: [] };
+    return { state: 'no_expenses', total: 0, fairShare: 0, balances: [], transfers: [] };
   }
 
   const fairShare = totalSpent / members.length;
@@ -173,7 +178,10 @@ export function computeSettlement(transactions, members, householdId) {
     if (creditors[j].remaining < 0.01) j++;
   }
 
-  return { total: totalSpent, fairShare, balances, transfers };
+  if (transfers.length === 0) {
+    return { state: 'even', total: totalSpent, fairShare, balances, transfers: [] };
+  }
+  return { state: 'unbalanced', total: totalSpent, fairShare, balances, transfers };
 }
 
 // ─── Color palette para asignar a miembros ────────────────────────────────────

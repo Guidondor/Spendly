@@ -137,7 +137,10 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
     }
   }
 
-  const visibleCategories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const visibleCategories = useMemo(() => {
+    const base = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    return base.map(c => ({ ...c, name: getCategoryByKey(c.key, lang).name }));
+  }, [type, lang]);
   const s = useMemo(() => createStyles(theme), [theme]);
 
   return (

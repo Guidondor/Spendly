@@ -388,6 +388,7 @@ export default function HomeScreen({ session }) {
       ? personalExpenses
       : householdExpenses;
   const balance = income - expenses;
+  const pctSpent = income > 0 ? Math.min(100, Math.round((expenses / income) * 100)) : 0;
 
   const sections = useMemo(() => groupByDate(filteredTxs, L, lang), [filteredTxs, L, lang]);
   const s = useMemo(() => createStyles(theme), [theme]);
@@ -430,10 +431,20 @@ export default function HomeScreen({ session }) {
         <Text style={[s.balanceAmount, { color: balance >= 0 ? theme.income : theme.expense }]}>
           {balance >= 0 ? '' : '-'}{formatMoney(balance)}
         </Text>
-        {/* Green decorative bar */}
+        {/* Progress bar: % del ingreso gastado */}
         <View style={s.balanceBar}>
-          <View style={[s.balanceBarFill, { backgroundColor: theme.income }]} />
+          <View style={[s.balanceBarFill, {
+            backgroundColor: pctSpent >= 80 ? theme.expense : theme.income,
+            width: `${pctSpent}%`,
+          }]} />
         </View>
+        {income > 0 && (
+          <Text style={[s.balancePctText, {
+            color: pctSpent >= 80 ? theme.expense : theme.subtext,
+          }]}>
+            {L.pctIncomeSpent.replace('{n}', pctSpent)}
+          </Text>
+        )}
 
         {household && scopeFilter === 'all' && (
           <View style={s.splitRow}>
@@ -780,9 +791,13 @@ function createStyles(t) {
     balanceAmount: { fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
     balanceBar: {
       height: 3, backgroundColor: t.input, borderRadius: 2,
-      marginTop: 10, marginBottom: 16, overflow: 'hidden',
+      marginTop: 10, marginBottom: 6, overflow: 'hidden',
     },
-    balanceBarFill: { height: 3, borderRadius: 2, width: '100%' },
+    balanceBarFill: { height: 3, borderRadius: 2 },
+    balancePctText: {
+      fontSize: 11, fontWeight: '600',
+      textAlign: 'right', marginBottom: 14,
+    },
     summaryRow: { flexDirection: 'row', alignItems: 'center' },
     summaryItem: { flex: 1, alignItems: 'center', gap: 4 },
     summaryDivider: { width: 1, height: 48, marginHorizontal: 16 },

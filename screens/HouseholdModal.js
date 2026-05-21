@@ -283,8 +283,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
           </TouchableOpacity>
         </View>
 
-        {/* Settle-up: solo si hay >1 miembro y hay txs compartidas con balances */}
-        {settlement && settlement.transfers.length > 0 && (
+        {/* Settle-up: card siempre visible cuando hay grupo, contenido según state */}
+        {settlement && (
           <View style={[s.settleCard, { backgroundColor: theme.card, borderColor: theme.accent }]}>
             <View style={s.settleHeaderRow}>
               <View style={s.settleHeaderIconWrap}>
@@ -292,57 +292,75 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.settleTitle, { color: theme.text }]}>{L.settleUp}</Text>
-                <Text style={[s.settleSub, { color: theme.subtext }]}>
-                  {L.settleTotal}: {formatMoney(settlement.total)}
-                </Text>
+                {settlement.state === 'unbalanced' && (
+                  <Text style={[s.settleSub, { color: theme.subtext }]}>
+                    {L.settleTotal}: {formatMoney(settlement.total)}
+                  </Text>
+                )}
               </View>
-              <TouchableOpacity onPress={() => setShowSettleDetail(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={[s.settleToggle, { color: theme.accent }]}>
-                  {showSettleDetail ? L.settleHide : L.settleDetail}
-                </Text>
-              </TouchableOpacity>
+              {settlement.state === 'unbalanced' && (
+                <TouchableOpacity onPress={() => setShowSettleDetail(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[s.settleToggle, { color: theme.accent }]}>
+                    {showSettleDetail ? L.settleHide : L.settleDetail}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            {settlement.transfers.map((tr, i) => (
-              <View
-                key={`${tr.from.user_id}-${tr.to.user_id}-${i}`}
-                style={[s.transferRow, i === 0 && { borderTopWidth: 0 }]}
-              >
-                <AuthorBadge member={tr.from} size="sm" />
-                <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
-                  {tr.from.display_name}
-                </Text>
-                <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
-                <Text style={[s.transferAmount, { color: theme.accent }]}>{formatMoney(tr.amount)}</Text>
-                <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
-                <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
-                  {tr.to.display_name}
-                </Text>
-                <AuthorBadge member={tr.to} size="sm" />
-              </View>
-            ))}
+            {settlement.state === 'no_members' && (
+              <Text style={[s.settleEmpty, { color: theme.subtext }]}>{L.settleNoMembers}</Text>
+            )}
+            {settlement.state === 'no_expenses' && (
+              <Text style={[s.settleEmpty, { color: theme.subtext }]}>{L.settleNoExpenses}</Text>
+            )}
+            {settlement.state === 'even' && (
+              <Text style={[s.settleEmpty, { color: theme.income }]}>✓ {L.settleEvenLabel}</Text>
+            )}
 
-            {showSettleDetail && (
-              <View style={s.settleDetail}>
-                <Text style={[s.settleFairLine, { color: theme.subtext }]}>
-                  {L.settleFairShare.toUpperCase()} {formatMoney(settlement.fairShare)}
-                </Text>
-                {settlement.balances.map(b => (
-                  <View key={b.member.user_id} style={s.balanceRow}>
-                    <AuthorBadge member={b.member} size="sm" />
-                    <Text style={[s.balanceName, { color: theme.text }]} numberOfLines={1}>
-                      {b.member.display_name}
+            {settlement.state === 'unbalanced' && (
+              <>
+                {settlement.transfers.map((tr, i) => (
+                  <View
+                    key={`${tr.from.user_id}-${tr.to.user_id}-${i}`}
+                    style={[s.transferRow, i === 0 && { borderTopWidth: 0 }]}
+                  >
+                    <AuthorBadge member={tr.from} size="sm" />
+                    <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
+                      {tr.from.display_name}
                     </Text>
-                    <Text style={[s.balanceSpent, { color: theme.subtext }]}>{formatMoney(b.spent)}</Text>
-                    <Text style={[
-                      s.balanceDelta,
-                      { color: b.balance > 0 ? theme.income : (b.balance < 0 ? theme.expense : theme.subtext) },
-                    ]}>
-                      {b.balance > 0 ? '+' : b.balance < 0 ? '-' : ''}{formatMoney(Math.abs(b.balance))}
+                    <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
+                    <Text style={[s.transferAmount, { color: theme.accent }]}>{formatMoney(tr.amount)}</Text>
+                    <Text style={[s.transferArrow, { color: theme.subtext }]}>→</Text>
+                    <Text style={[s.transferName, { color: theme.text }]} numberOfLines={1}>
+                      {tr.to.display_name}
                     </Text>
+                    <AuthorBadge member={tr.to} size="sm" />
                   </View>
                 ))}
-              </View>
+
+                {showSettleDetail && (
+                  <View style={s.settleDetail}>
+                    <Text style={[s.settleFairLine, { color: theme.subtext }]}>
+                      {L.settleFairShare.toUpperCase()} {formatMoney(settlement.fairShare)}
+                    </Text>
+                    {settlement.balances.map(b => (
+                      <View key={b.member.user_id} style={s.balanceRow}>
+                        <AuthorBadge member={b.member} size="sm" />
+                        <Text style={[s.balanceName, { color: theme.text }]} numberOfLines={1}>
+                          {b.member.display_name}
+                        </Text>
+                        <Text style={[s.balanceSpent, { color: theme.subtext }]}>{formatMoney(b.spent)}</Text>
+                        <Text style={[
+                          s.balanceDelta,
+                          { color: b.balance > 0 ? theme.income : (b.balance < 0 ? theme.expense : theme.subtext) },
+                        ]}>
+                          {b.balance > 0 ? '+' : b.balance < 0 ? '-' : ''}{formatMoney(Math.abs(b.balance))}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}
@@ -659,6 +677,7 @@ function createStyles(t) {
     settleTitle: { fontSize: 15, fontWeight: '800' },
     settleSub: { fontSize: 12, fontWeight: '500', marginTop: 2 },
     settleToggle: { fontSize: 13, fontWeight: '700' },
+    settleEmpty: { fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 8 },
 
     transferRow: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
