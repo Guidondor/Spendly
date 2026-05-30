@@ -1,19 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import { withTimeout } from './withTimeout';
-
-// Invalida todas las keys de cache de AI insight. Se llama después de cualquier
-// operación que cambie el scope del usuario (crear/unirse/salir de hogar) — el
-// consejo viejo no refleja el nuevo conjunto de transacciones visibles.
-async function clearAIInsightCache() {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const toRemove = keys.filter(k => k.startsWith('spendly_insight_'));
-    if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove);
-  } catch (e) {
-    if (__DEV__) console.warn('[households] clearAIInsightCache failed:', e?.message || e);
-  }
-}
+import { clearAIInsightCache } from './aiInsightCache';
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 

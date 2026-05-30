@@ -62,18 +62,24 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
 
   // Settle-up: txs del mes en curso del grupo
   const [monthTxs, setMonthTxs] = useState([]);
+  const [settleLoadError, setSettleLoadError] = useState(false);
   const [showSettleDetail, setShowSettleDetail] = useState(false);
 
   useEffect(() => {
     if (!visible || !household?.id || !currentUserId) {
       setMonthTxs([]);
+      setSettleLoadError(false);
       return;
     }
     let cancelled = false;
     const now = new Date();
+    setSettleLoadError(false);
     getTransactions(currentUserId, now.getFullYear(), now.getMonth() + 1, household.id)
       .then(txs => { if (!cancelled) setMonthTxs(txs); })
-      .catch(e => { if (__DEV__) console.warn('[HouseholdModal] load txs:', e?.message || e); });
+      .catch(e => {
+        if (__DEV__) console.warn('[HouseholdModal] load txs:', e?.message || e);
+        if (!cancelled) setSettleLoadError(true);
+      });
     return () => { cancelled = true; };
   }, [visible, household?.id, currentUserId]);
 
@@ -307,10 +313,13 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
               )}
             </View>
 
-            {settlement.state === 'no_members' && (
+            {settleLoadError && (
+              <Text style={[s.settleEmpty, { color: theme.expense }]}>{L.settleLoadError}</Text>
+            )}
+            {!settleLoadError && settlement.state === 'no_members' && (
               <Text style={[s.settleEmpty, { color: theme.subtext }]}>{L.settleNoMembers}</Text>
             )}
-            {settlement.state === 'no_expenses' && (
+            {!settleLoadError && settlement.state === 'no_expenses' && (
               <Text style={[s.settleEmpty, { color: theme.subtext }]}>{L.settleNoExpenses}</Text>
             )}
             {settlement.state === 'even' && (
@@ -550,7 +559,12 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
           <View style={s.handle} />
           <View style={s.titleRow}>
             <Text style={s.title}>{L.sharedGroup}</Text>
-            <TouchableOpacity onPress={close} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <TouchableOpacity
+              onPress={close}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={L.a11yCloseBtn}
+            >
               <Text style={s.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>

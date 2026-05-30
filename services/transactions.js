@@ -2,6 +2,11 @@ import { supabase } from './supabase';
 import { withTimeout } from './withTimeout';
 import { invalidateUserTxCache } from './txCache';
 
+// Hard cap por mes: usuarios reales rara vez superan 200-300 tx/mes; el cap
+// previene OOM si alguien acumula data anómala (script, import, bug).
+const MAX_TX_PER_MONTH = 1000;
+const MAX_TX_PER_YEAR = 5000;
+
 export async function getTransactions(userId, year, month, householdId = null) {
   const mm = String(month).padStart(2, '0');
   const lastDay = new Date(year, month, 0).getDate();
@@ -14,7 +19,8 @@ export async function getTransactions(userId, year, month, householdId = null) {
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date', { ascending: false })
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(MAX_TX_PER_MONTH);
 
   if (householdId) {
     // Privadas del user + compartidas del hogar
@@ -85,7 +91,8 @@ export async function getTransactionsByYear(userId, year, householdId = null) {
     .select('*')
     .gte('date', startDate)
     .lte('date', endDate)
-    .order('date', { ascending: false });
+    .order('date', { ascending: false })
+    .limit(MAX_TX_PER_YEAR);
 
   if (householdId) {
     q = q.or(`user_id.eq.${userId},household_id.eq.${householdId}`);

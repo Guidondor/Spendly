@@ -78,7 +78,12 @@ export default function HistoryModal({ visible, onClose, userId }) {
         {/* Cabecera */}
         <View style={s.titleRow}>
           <Text style={s.title}>📊 {L.historyTitle}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={L.a11yCloseBtn}
+          >
             <Text style={s.closeBtn}>✕</Text>
           </TouchableOpacity>
         </View>

@@ -16,6 +16,7 @@ import RecurringModal from './RecurringModal';
 import SettingsModal from './SettingsModal';
 import HouseholdModal from './HouseholdModal';
 import { applyRecurring, deleteRecurring } from '../services/recurring';
+import { AI_INSIGHT_CACHE_PREFIX } from '../services/aiInsightCache';
 import { formatMoney } from '../services/format';
 import { useAlert } from '../components/AppAlert';
 import { useHousehold } from '../components/HouseholdProvider';
@@ -171,7 +172,6 @@ const txStyle = StyleSheet.create({
 
 // ─── AI Insights card ─────────────────────────────────────────────────────────
 
-export const AI_INSIGHT_CACHE_PREFIX = 'spendly_insight_v2_';
 const AI_INSIGHT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function AIInsightCard({ theme, userId, transactions, L, lang, viewDate, householdId }) {
@@ -232,6 +232,9 @@ function AIInsightCard({ theme, userId, transactions, L, lang, viewDate, househo
             JSON.stringify({ insight: data.insight, timestamp: Date.now() })
           );
         } catch {}
+      } else if (__DEV__) {
+        // L6: distinguir "no insight" de error backend en logs.
+        console.warn('[AIInsightCard] /insight HTTP', res.status);
       }
     } catch (e) {
       if (e.name !== 'AbortError') console.error('AIInsightCard fetch error:', e);
@@ -355,7 +358,9 @@ export default function HomeScreen({ session }) {
   function handleSaved(newTx) {
     setModalVisible(false);
     setEditingTx(null);
-    const tDate = new Date(newTx.date + 'T12:00:00');
+    // L1 TZ-safe parse (evita off-by-one en TZ extremas).
+    const [tY, tM, tD] = newTx.date.split('-').map(Number);
+    const tDate = new Date(tY, tM - 1, tD, 12, 0, 0);
     if (tDate.getFullYear() === viewDate.getFullYear() && tDate.getMonth() === viewDate.getMonth()) {
       loadTransactions();
     }
@@ -590,10 +595,20 @@ export default function HomeScreen({ session }) {
       {/* Header */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={s.headerIconBtn} onPress={() => setRecurringVisible(true)}>
+          <TouchableOpacity
+            style={s.headerIconBtn}
+            onPress={() => setRecurringVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={L.a11yRecurringBtn}
+          >
             <Text style={s.headerIconText}>🔄</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.headerIconBtn} onPress={() => setSettingsVisible(true)}>
+          <TouchableOpacity
+            style={s.headerIconBtn}
+            onPress={() => setSettingsVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={L.a11ySettingsBtn}
+          >
             <Text style={s.headerIconText}>⚙️</Text>
           </TouchableOpacity>
         </View>
@@ -609,12 +624,19 @@ export default function HomeScreen({ session }) {
               style={[s.headerIconBtn, { backgroundColor: 'rgba(139,92,246,0.25)' }]}
               onPress={() => setHouseholdVisible(true)}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={L.a11yHouseholdBtn}
             >
               <Text style={s.headerIconText}>👥</Text>
               <View style={s.groupBtnDot} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={s.headerIconBtn} onPress={() => setHistoryVisible(true)}>
+          <TouchableOpacity
+            style={s.headerIconBtn}
+            onPress={() => setHistoryVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={L.a11yHistoryBtn}
+          >
             <Text style={s.headerIconText}>📅</Text>
           </TouchableOpacity>
         </View>
@@ -622,13 +644,23 @@ export default function HomeScreen({ session }) {
 
       {/* Month selector */}
       <View style={s.monthRow}>
-        <TouchableOpacity onPress={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} style={s.monthBtn}>
+        <TouchableOpacity
+          onPress={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+          style={s.monthBtn}
+          accessibilityRole="button"
+          accessibilityLabel={L.a11yPrevMonthBtn}
+        >
           <Text style={s.monthArrow}>‹</Text>
         </TouchableOpacity>
         <Text style={s.monthLabel}>
           {MONTHS[lang][viewDate.getMonth()]} {viewDate.getFullYear()}
         </Text>
-        <TouchableOpacity onPress={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} style={s.monthBtn}>
+        <TouchableOpacity
+          onPress={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+          style={s.monthBtn}
+          accessibilityRole="button"
+          accessibilityLabel={L.a11yNextMonthBtn}
+        >
           <Text style={s.monthArrow}>›</Text>
         </TouchableOpacity>
       </View>
@@ -675,6 +707,8 @@ export default function HomeScreen({ session }) {
         style={s.fab}
         onPress={() => { setEditingTx(null); setModalVisible(true); }}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={L.a11yAddTxBtn}
       >
         <Text style={s.fabText}>+</Text>
       </TouchableOpacity>

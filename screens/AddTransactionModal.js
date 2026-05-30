@@ -54,7 +54,9 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       setDescription(editTransaction.description);
       setCategory(editTransaction.category);
       setAiSuggested(false);
-      setTxDate(new Date(editTransaction.date + 'T12:00:00'));
+      // L1 TZ-safe: parsear como local date evita off-by-one en TZ extremas (UTC±12+).
+      const [eY, eM, eD] = editTransaction.date.split('-').map(Number);
+      setTxDate(new Date(eY, eM - 1, eD, 12, 0, 0));
       setIsShared(!!editTransaction.household_id);
     } else {
       setType('expense');
@@ -161,7 +163,12 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
           <View style={s.handle} />
           <View style={s.titleRow}>
             <Text style={s.title}>{isEditing ? L.editTx : L.newTx}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={L.a11yCloseBtn}
+            >
               <Text style={s.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>

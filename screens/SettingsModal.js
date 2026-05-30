@@ -2,27 +2,16 @@ import React, { useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Switch, Platform, Linking,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { supabase } from '../services/supabase';
 import { withTimeout } from '../services/withTimeout';
+import { clearAIInsightCache } from '../services/aiInsightCache';
 import { LABELS } from '../constants/i18n';
 import { useHousehold } from '../components/HouseholdProvider';
 import HouseholdModal from './HouseholdModal';
-import { AI_INSIGHT_CACHE_PREFIX } from './HomeScreen';
 
 const PRIVACY_URL = 'https://guidondor.github.io/Spendly/privacy.html';
-
-async function clearAIInsightCache() {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const toRemove = keys.filter(k => k.startsWith(AI_INSIGHT_CACHE_PREFIX));
-    if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove);
-  } catch (e) {
-    console.error('clearAIInsightCache error:', e);
-  }
-}
 
 export default function SettingsModal({ visible, onClose, session }) {
   const { theme, isDark, toggleTheme, lang, setLang } = useTheme();
@@ -88,7 +77,12 @@ export default function SettingsModal({ visible, onClose, session }) {
         {/* Header */}
         <View style={s.titleRow}>
           <Text style={s.title}>{L.settings}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={L.a11yCloseBtn}
+          >
             <Text style={s.closeBtn}>✕</Text>
           </TouchableOpacity>
         </View>

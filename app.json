@@ -7,6 +7,14 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cc17aa7b-7bc5-4657-a1db-7038a86bdde2",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -32,6 +40,7 @@
     "plugins": [
       "expo-font",
       "expo-web-browser",
+      "expo-updates",
       "@react-native-community/datetimepicker"
     ],
     "extra": {

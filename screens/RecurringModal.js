@@ -66,7 +66,12 @@ export default function RecurringModal({ visible, onClose, userId }) {
         <View style={s.handle} />
         <View style={s.header}>
           <Text style={s.title}>🔄 {L.recurringHeaderTitle}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={L.a11yCloseBtn}
+          >
             <Text style={[s.closeBtn, { color: theme.subtext }]}>✕</Text>
           </TouchableOpacity>
         </View>

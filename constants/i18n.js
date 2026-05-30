@@ -71,11 +71,6 @@ export const LABELS = {
     overBudget:    '¡Límite superado!',
     nearLimit:     'Cerca del límite',
     noBudget:      'Sin límite definido',
-    addCustomCat:  'Nueva categoría',
-    customCatName: 'Nombre',
-    setBudget:     'Definir presupuesto',
-    editBudget:    'Editar presupuesto',
-    budgetAmount:  'Límite mensual',
 
     goalsTitle:    'Metas',
     newGoal:       'Nueva meta',
@@ -89,12 +84,9 @@ export const LABELS = {
     removeMoney:   'Quitar',
     updateSavings: 'Actualizar',
 
-    annualSummary: 'Resumen histórico',
     totalYear:     'Total',
 
     aiTitle:       'Insights IA',
-    aiLoading:     'Analizando tus finanzas...',
-    aiError:       'No se pudo obtener el insight',
 
     requiredFields:      'Completá todos los campos',
     invalidEmail:        'Email inválido',
@@ -169,6 +161,7 @@ export const LABELS = {
     pctIncomeSpent:        '{n}% del ingreso gastado',
     settleNoMembers:       'Sumá miembros para empezar a equilibrar gastos',
     settleNoExpenses:      'Aún no hay gastos compartidos este mes',
+    settleLoadError:       'No se pudieron cargar los gastos del mes. Reabrí el modal.',
     settleEvenLabel:       'Están a mano',
     allCaughtUp:           'Estás al día',
     txsThisMonth:          '{n} movimientos registrados este mes',
@@ -178,7 +171,6 @@ export const LABELS = {
     settleFairShare:       'Cada uno debería poner',
     settleDetail:          'Ver detalle',
     settleHide:            'Ocultar',
-    settleAllEven:         'Están a mano',
     shareWithGroup:        'Compartir con',
     txOfAnotherMember:     'Esta es una transacción de otro miembro del grupo.',
     addGroupGoal:          'Agregar meta del grupo',
@@ -228,12 +220,9 @@ export const LABELS = {
     egGuido:               'ej: Guido',
     egEstefi:              'ej: Estefi',
     egCasaBurak:           'ej: Casa Burak',
-    rotateBtn:             'Rotar',
-    generateNewBtn:        'Generar nuevo',
     expiredLabel:          'Expirado',
     expiresInHrsTpl:       'Expira en {h}h {m}m',
     expiresInMinsTpl:      'Expira en {m}m',
-    sectionMembers:        'MIEMBROS',
 
     // SettingsModal
     defaultUserName:       'Usuario',
@@ -253,6 +242,16 @@ export const LABELS = {
     haveAccount:           '¿Ya tenés cuenta?',
     goToLogin:             'Ir al inicio de sesión',
     privacyAcceptText:     'Al registrarte aceptás nuestra',
+
+    // Accessibility labels (screen reader)
+    a11yRecurringBtn:      'Gastos recurrentes',
+    a11ySettingsBtn:       'Ajustes',
+    a11yHouseholdBtn:      'Grupo compartido',
+    a11yHistoryBtn:        'Historial anual',
+    a11yPrevMonthBtn:      'Mes anterior',
+    a11yNextMonthBtn:      'Mes siguiente',
+    a11yAddTxBtn:          'Agregar nuevo movimiento',
+    a11yCloseBtn:          'Cerrar',
 
     // AddTransactionModal — placeholders y warnings
     descPlaceholder:       'ej: McDonald\'s, sueldo, SUBE...',
@@ -350,11 +349,6 @@ export const LABELS = {
     overBudget:    'Over budget!',
     nearLimit:     'Near limit',
     noBudget:      'No limit set',
-    addCustomCat:  'New category',
-    customCatName: 'Name',
-    setBudget:     'Set budget',
-    editBudget:    'Edit budget',
-    budgetAmount:  'Monthly limit',
 
     goalsTitle:    'Goals',
     newGoal:       'New goal',
@@ -368,12 +362,9 @@ export const LABELS = {
     removeMoney:   'Remove',
     updateSavings: 'Update',
 
-    annualSummary: 'Historical summary',
     totalYear:     'Total',
 
     aiTitle:       'AI Insights',
-    aiLoading:     'Analyzing your finances...',
-    aiError:       'Could not get insight',
 
     requiredFields:      'Please fill in all fields',
     invalidEmail:        'Invalid email address',
@@ -448,6 +439,7 @@ export const LABELS = {
     pctIncomeSpent:        '{n}% of income spent',
     settleNoMembers:       'Add members to start splitting expenses',
     settleNoExpenses:      'No shared expenses this month yet',
+    settleLoadError:       "Couldn't load this month's expenses. Reopen the modal.",
     settleEvenLabel:       "You're even",
     allCaughtUp:           "You're all caught up",
     txsThisMonth:          '{n} transactions this month',
@@ -457,7 +449,6 @@ export const LABELS = {
     settleFairShare:       'Each one should put in',
     settleDetail:          'See detail',
     settleHide:            'Hide',
-    settleAllEven:         "You're even",
     shareWithGroup:        'Share with',
     txOfAnotherMember:     'This is a transaction by another group member.',
     addGroupGoal:          'Add group goal',
@@ -507,12 +498,9 @@ export const LABELS = {
     egGuido:               'e.g. Guido',
     egEstefi:              'e.g. Steph',
     egCasaBurak:           'e.g. Smith Home',
-    rotateBtn:             'Rotate',
-    generateNewBtn:        'Generate new',
     expiredLabel:          'Expired',
     expiresInHrsTpl:       'Expires in {h}h {m}m',
     expiresInMinsTpl:      'Expires in {m}m',
-    sectionMembers:        'MEMBERS',
 
     // SettingsModal
     defaultUserName:       'User',
@@ -532,6 +520,16 @@ export const LABELS = {
     haveAccount:           'Already have an account?',
     goToLogin:             'Go to sign in',
     privacyAcceptText:     'By signing up you accept our',
+
+    // Accessibility labels (screen reader)
+    a11yRecurringBtn:      'Recurring expenses',
+    a11ySettingsBtn:       'Settings',
+    a11yHouseholdBtn:      'Shared group',
+    a11yHistoryBtn:        'Yearly history',
+    a11yPrevMonthBtn:      'Previous month',
+    a11yNextMonthBtn:      'Next month',
+    a11yAddTxBtn:          'Add new transaction',
+    a11yCloseBtn:          'Close',
 
     // AddTransactionModal — placeholders & warnings
     descPlaceholder:       'e.g. McDonald\'s, salary, metro card...',
