@@ -3,6 +3,7 @@ import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Share,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useTheme } from '../services/theme';
 import { useAlert } from '../components/AppAlert';
 import { useHousehold } from '../components/HouseholdProvider';
@@ -78,6 +79,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
       .then(txs => { if (!cancelled) setMonthTxs(txs); })
       .catch(e => {
         if (__DEV__) console.warn('[HouseholdModal] load txs:', e?.message || e);
+        Sentry.captureException(e, { tags: { area: 'HouseholdModal.loadMonthTxs' } });
         if (!cancelled) setSettleLoadError(true);
       });
     return () => { cancelled = true; };

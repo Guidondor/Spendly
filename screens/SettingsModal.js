@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Switch, Platform, Linking,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { supabase } from '../services/supabase';
@@ -64,6 +65,7 @@ export default function SettingsModal({ visible, onClose, session }) {
       await supabase.auth.signOut({ scope: 'local' });
     } catch (e) {
       if (__DEV__) console.warn('[SettingsModal] delete_user_account failed:', e?.message || e);
+      Sentry.captureException(e, { tags: { area: 'SettingsModal.deleteAccount' } });
       setDeleteError(L.deleteAccountError);
       setDeleting(false);
     }

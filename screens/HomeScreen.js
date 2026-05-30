@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Sentry from '@sentry/react-native';
 import { supabase } from '../services/supabase';
 import { getTransactions, deleteTransaction } from '../services/transactions';
 import { getCategoryByKey, CategoryIcon } from '../services/categories';
@@ -237,7 +238,10 @@ function AIInsightCard({ theme, userId, transactions, L, lang, viewDate, househo
         console.warn('[AIInsightCard] /insight HTTP', res.status);
       }
     } catch (e) {
-      if (e.name !== 'AbortError') console.error('AIInsightCard fetch error:', e);
+      if (e.name !== 'AbortError') {
+        console.error('AIInsightCard fetch error:', e);
+        Sentry.captureException(e, { tags: { area: 'AIInsightCard.loadInsight' } });
+      }
     } finally { setLoading(false); }
   }
 
@@ -308,7 +312,8 @@ export default function HomeScreen({ session }) {
       const data = await getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1, householdId);
       setTransactions(data);
       hasDataRef.current = true;
-    } catch {
+    } catch (e) {
+      Sentry.captureException(e, { tags: { area: 'HomeScreen.loadTransactions' } });
       alert('Error', L.txLoadFailed);
     } finally {
       setLoading(false);

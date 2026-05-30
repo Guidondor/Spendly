@@ -7,6 +7,22 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle, Polyline, Line } from 'react-native-svg';
 import * as NavigationBar from 'expo-navigation-bar';
+import * as Sentry from '@sentry/react-native';
+
+// Init Sentry lo más temprano posible. Si no hay DSN (dev/CI local), Sentry
+// no envía nada — el init es no-op silencioso.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    // tracesSampleRate 0 — solo errors, no performance traces (control de costo).
+    tracesSampleRate: 0,
+    // No enviar errors en DEV, solo en producción/preview AAB.
+    enabled: !__DEV__,
+    // PII off — la app maneja datos financieros sensibles.
+    sendDefaultPii: false,
+  });
+}
 
 import { supabase } from './services/supabase';
 import { withTimeout } from './services/withTimeout';
@@ -225,7 +241,7 @@ function RootNavigator() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-export default function App() {
+function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
@@ -236,3 +252,7 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+// Sentry.wrap envuelve la app con un ErrorBoundary nativo + perf monitoring.
+// No-op si Sentry no fue init (DSN ausente).
+export default Sentry.wrap(App);

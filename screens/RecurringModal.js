@@ -3,6 +3,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity,
   FlatList, ActivityIndicator, StatusBar,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useAlert } from '../components/AppAlert';
 import { useTheme } from '../services/theme';
 import { getRecurring, deleteRecurring } from '../services/recurring';
@@ -29,6 +30,7 @@ export default function RecurringModal({ visible, onClose, userId }) {
       setItems(data);
     } catch (e) {
       console.error('RecurringModal load error:', e);
+      Sentry.captureException(e, { tags: { area: 'RecurringModal.load' } });
       alert('Error', L.recurringLoadFailed);
     } finally {
       setLoading(false);
