@@ -47,8 +47,12 @@ function groupByDate(transactions, L, lang) {
 }
 
 // ─── Transaction item ─────────────────────────────────────────────────────────
+// onDelete/onEdit reciben tx por argumento → permite useCallback estable en el parent
+// y evita re-renders innecesarios cuando combina con React.memo.
 
-function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author, canEdit }) {
+const TransactionItem = React.memo(function TransactionItem({
+  transaction, onDelete, onEdit, theme, L, lang, author, canEdit,
+}) {
   const cat = getCategoryByKey(transaction.category, lang);
   const isIncome = transaction.type === 'income';
   const isShared = !!transaction.household_id;
@@ -57,7 +61,7 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
   function showMenu() {
     const buttons = [];
     if (canEdit) {
-      buttons.push({ text: L.editBtn, onPress: onEdit });
+      buttons.push({ text: L.editBtn, onPress: () => onEdit(transaction) });
       buttons.push({
         text: L.deleteBtn, style: 'destructive',
         onPress: () => confirm({
@@ -65,7 +69,7 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
           message: L.deleteRecurringConfirmTpl.replace('{description}', transaction.description),
           buttons: [
             { text: L.cancel, style: 'cancel' },
-            { text: L.deleteConfirm, style: 'destructive', onPress: onDelete },
+            { text: L.deleteConfirm, style: 'destructive', onPress: () => onDelete(transaction) },
           ],
         }),
       });
@@ -115,7 +119,34 @@ function TransactionItem({ transaction, onDelete, onEdit, theme, L, lang, author
       </Text>
     </Pressable>
   );
-}
+});
+
+const SectionRow = React.memo(function SectionRow({
+  section, theme, L, lang, userId, getMemberById, onDelete, onEdit, sectionHeaderStyle,
+}) {
+  return (
+    <View>
+      <Text style={[sectionHeaderStyle, { color: theme.sectionText }]}>{section.label}</Text>
+      {section.data.map(tx => {
+        const author = tx.household_id ? getMemberById(tx.user_id) : null;
+        const canEdit = tx.user_id === userId;
+        return (
+          <TransactionItem
+            key={tx.id}
+            transaction={tx}
+            theme={theme}
+            L={L}
+            lang={lang}
+            author={author}
+            canEdit={canEdit}
+            onDelete={onDelete}
+            onEdit={onEdit}
+          />
+        );
+      })}
+    </View>
+  );
+});
 
 const txStyle = StyleSheet.create({
   item: {
@@ -171,6 +202,7 @@ function AIInsightCard({ theme, userId, transactions, L, lang, viewDate, househo
       }
     } catch {}
 
+    if (signal.aborted) return;
     setInsight(null);
     if (transactions.length === 0) return;
 
@@ -289,9 +321,9 @@ export default function HomeScreen({ session }) {
     }, [loadTransactions])
   );
 
-  async function handleDelete(tx) {
+  const handleDelete = useCallback(async (tx) => {
     try {
-      await deleteTransaction(tx.id);
+      await deleteTransaction(tx.id, userId);
       setTransactions(prev => prev.filter(t => t.id !== tx.id));
 
       if (tx.recurring_id) {
@@ -313,7 +345,12 @@ export default function HomeScreen({ session }) {
     } catch {
       alert('Error', L.deleteFailed);
     }
-  }
+  }, [alert, confirm, L]);
+
+  const handleEdit = useCallback((tx) => {
+    setEditingTx(tx);
+    setModalVisible(true);
+  }, []);
 
   function handleSaved(newTx) {
     setModalVisible(false);
@@ -393,6 +430,20 @@ export default function HomeScreen({ session }) {
 
   const sections = useMemo(() => groupByDate(filteredTxs, L, lang), [filteredTxs, L, lang]);
   const s = useMemo(() => createStyles(theme), [theme]);
+
+  const renderSection = useCallback(({ item: section }) => (
+    <SectionRow
+      section={section}
+      theme={theme}
+      L={L}
+      lang={lang}
+      userId={userId}
+      getMemberById={getMemberById}
+      onDelete={handleDelete}
+      onEdit={handleEdit}
+      sectionHeaderStyle={s.sectionHeader}
+    />
+  ), [theme, L, lang, userId, getMemberById, handleDelete, handleEdit, s.sectionHeader]);
 
   const ListHeader = (
     <>
@@ -596,28 +647,7 @@ export default function HomeScreen({ session }) {
               <Text style={[s.emptyHint, { color: theme.emptyText }]}>{L.emptyHint}</Text>
             </View>
           }
-          renderItem={({ item: section }) => (
-            <View>
-              <Text style={[s.sectionHeader, { color: theme.sectionText }]}>{section.label}</Text>
-              {section.data.map(tx => {
-                const author = tx.household_id ? getMemberById(tx.user_id) : null;
-                const canEdit = tx.user_id === userId;
-                return (
-                  <TransactionItem
-                    key={tx.id}
-                    transaction={tx}
-                    theme={theme}
-                    L={L}
-                    lang={lang}
-                    author={author}
-                    canEdit={canEdit}
-                    onDelete={() => handleDelete(tx)}
-                    onEdit={() => { setEditingTx(tx); setModalVisible(true); }}
-                  />
-                );
-              })}
-            </View>
-          )}
+          renderItem={renderSection}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

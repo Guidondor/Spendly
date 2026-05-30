@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Switch,
@@ -35,13 +35,19 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
   const [categorizing, setCategorizing] = useState(false);
   const [aiSuggested, setAiSuggested]   = useState(false);
   const [isRecurring, setIsRecurring]   = useState(false);
-  const [dayOfMonth, setDayOfMonth]     = useState(new Date().getDate());
+  // Backend constraint: day_of_month 1-28 (compatible con febrero).
+  const [dayOfMonth, setDayOfMonth]     = useState(Math.min(new Date().getDate(), 28));
   const [txDate, setTxDate]             = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isShared, setIsShared]         = useState(false);
 
+  // Si el user selecciona categoría manualmente, no permitir que el debounce
+  // de IA la sobrescriba más tarde (race en este mismo flow).
+  const userOverrodeCategoryRef = useRef(false);
+
   useEffect(() => {
     if (!visible) return;
+    userOverrodeCategoryRef.current = false;
     if (editTransaction) {
       setType(editTransaction.type);
       setAmount(String(editTransaction.amount));
@@ -57,7 +63,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
       setCategory('other');
       setAiSuggested(false);
       setIsRecurring(false);
-      setDayOfMonth(new Date().getDate());
+      setDayOfMonth(Math.min(new Date().getDate(), 28));
       setTxDate(new Date());
       setIsShared(false);
     }
@@ -69,9 +75,13 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
     if (saving) return;
     if (!description.trim() || description.length < 3) return;
     const timer = setTimeout(async () => {
+      if (userOverrodeCategoryRef.current) return;
       setCategorizing(true);
       const suggested = await categorizeTransaction(description, type);
-      if (suggested) { setCategory(suggested); setAiSuggested(true); }
+      if (suggested && !userOverrodeCategoryRef.current) {
+        setCategory(suggested);
+        setAiSuggested(true);
+      }
       setCategorizing(false);
     }, 800);
     return () => clearTimeout(timer);
@@ -110,6 +120,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
           amount: parsed, description: description.trim(), type, category,
           date: dateStr,
           household_id: householdId,
+          userId,
         });
       } else {
         let recurringId = null;
@@ -220,7 +231,11 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
                       s.chip,
                       selected && { backgroundColor: cat.color, borderColor: cat.color },
                     ]}
-                    onPress={() => { setCategory(cat.key); setAiSuggested(false); }}
+                    onPress={() => {
+                      userOverrodeCategoryRef.current = true;
+                      setCategory(cat.key);
+                      setAiSuggested(false);
+                    }}
                   >
                     <CategoryIcon catKey={cat.key} size={16} color={selected ? '#fff' : cat.color} />
                     <Text style={[s.chipText, selected && s.chipTextActive]}>{cat.name}</Text>
@@ -288,7 +303,7 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
                   <View style={s.dayPickerWrap}>
                     <Text style={[s.dayPickerLabel, { color: theme.subtext }]}>{L.dayOfMonth}</Text>
                     <View style={s.dayPicker}>
-                      {[1, 5, 10, 15, 20, 25, 28].map(d => (
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                         <TouchableOpacity
                           key={d}
                           style={[s.dayBtn, dayOfMonth === d && { backgroundColor: theme.accent }]}
@@ -300,6 +315,9 @@ export default function AddTransactionModal({ visible, onClose, onSaved, userId,
                         </TouchableOpacity>
                       ))}
                     </View>
+                    <Text style={[s.dayPickerHint, { color: theme.subtext }]}>
+                      {L.dayPickerHint}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -411,6 +429,7 @@ function createStyles(t) {
       backgroundColor: t.card, borderWidth: 1, borderColor: t.inputBorder,
     },
     dayBtnText: { fontSize: 13, fontWeight: '700' },
+    dayPickerHint: { fontSize: 11, fontWeight: '500', marginTop: 8 },
     recurringWarning: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
   });
 }

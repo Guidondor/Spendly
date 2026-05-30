@@ -3,13 +3,11 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar, Linking,
 } from 'react-native';
-import Svg, { Path, G, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../services/supabase';
 import { withTimeout } from '../services/withTimeout';
+import { useTheme } from '../services/theme';
 import { LABELS } from '../constants/i18n';
-
-const lang = 'es';
-const L = LABELS[lang];
 
 function GoogleIcon() {
   return (
@@ -27,6 +25,9 @@ const HEADER = '#0f5132';
 const BG = '#f6fbf8';
 
 export default function LoginScreen({ navigation }) {
+  const { lang } = useTheme();
+  const L = LABELS[lang];
+
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
@@ -184,14 +185,14 @@ export default function LoginScreen({ navigation }) {
 
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={s.linkText}>
-              ¿No tenés cuenta?{' '}
+              {L.dontHaveAccount}{' '}
               <Text style={s.link}>{L.register}</Text>
             </Text>
           </TouchableOpacity>
 
           <View style={s.separator}>
             <View style={s.separatorLine} />
-            <Text style={s.separatorText}>o continuá con</Text>
+            <Text style={s.separatorText}>{L.orWith}</Text>
             <View style={s.separatorLine} />
           </View>
 
@@ -202,7 +203,7 @@ export default function LoginScreen({ navigation }) {
             activeOpacity={0.85}
           >
             <GoogleIcon />
-            <Text style={s.googleButtonText}>Continuar con Google</Text>
+            <Text style={s.googleButtonText}>{L.googleLogin}</Text>
           </TouchableOpacity>
         </View>
       </View>

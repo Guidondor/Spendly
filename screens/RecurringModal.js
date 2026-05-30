@@ -29,12 +29,13 @@ export default function RecurringModal({ visible, onClose, userId }) {
       setItems(data);
     } catch (e) {
       console.error('RecurringModal load error:', e);
+      alert('Error', L.recurringLoadFailed);
     } finally {
       setLoading(false);
     }
-  }, [userId, householdId]);
+  }, [userId, householdId, alert, L]);
 
-  React.useEffect(() => { if (visible) load(); }, [visible]);
+  React.useEffect(() => { if (visible) load(); }, [visible, load]);
 
   function confirmDelete(item) {
     confirm({

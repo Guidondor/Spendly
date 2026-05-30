@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme } from '../services/theme';
 import { getTransactions } from '../services/transactions';
+import { getCachedMonth, setCachedMonth } from '../services/txCache';
 import { getCategoryByKey } from '../services/categories';
 import { CategoryIcon } from '../services/categories';
 import { LABELS, MONTHS, MONTHS_SHORT } from '../constants/i18n';
@@ -273,8 +274,25 @@ function MonthlyBars({ userId, householdId, theme, currentDate, lang }) {
         const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
         months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: MONTHS_SHORT[lang][d.getMonth()].toUpperCase() });
       }
+      // Cache TTL 5min: si los 6 meses están en cache, evita el spinner y fetch.
+      const cached = months.map(m => getCachedMonth(userId, m.year, m.month, householdId));
+      if (cached.every(c => c !== null)) {
+        setData(months.map((m, i) => {
+          const txs = cached[i];
+          const inc = txs.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+          const exp = txs.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+          return { ...m, income: inc, expense: exp };
+        }));
+        return;
+      }
+
       setLoading(true);
-      Promise.all(months.map(m => getTransactions(userId, m.year, m.month, householdId)))
+      Promise.all(months.map((m, i) =>
+        cached[i] !== null
+          ? Promise.resolve(cached[i])
+          : getTransactions(userId, m.year, m.month, householdId)
+              .then(txs => { setCachedMonth(userId, m.year, m.month, householdId, txs); return txs; })
+      ))
         .then(results => {
           setData(months.map((m, i) => {
             const txs = results[i];
@@ -285,7 +303,7 @@ function MonthlyBars({ userId, householdId, theme, currentDate, lang }) {
         })
         .catch(() => alert('Error', L.monthlyDataLoadFailed))
         .finally(() => setLoading(false));
-    }, [userId, householdId, currentDate])
+    }, [userId, householdId, currentDate, lang])
   );
 
   if (loading) return <ActivityIndicator size="small" color={theme.accent} style={{ marginVertical: 16 }} />;

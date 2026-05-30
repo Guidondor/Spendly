@@ -7,6 +7,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../services/supabase';
 import { withTimeout } from '../services/withTimeout';
+import { useTheme } from '../services/theme';
 import { LABELS } from '../constants/i18n';
 
 function GoogleIcon() {
@@ -22,14 +23,14 @@ function GoogleIcon() {
 
 const PRIVACY_URL = 'https://guidondor.github.io/Spendly/privacy.html';
 
-const lang = 'es';
-const L = LABELS[lang];
-
 const ACCENT = '#16a34a';
 const HEADER = '#0f5132';
 const BG = '#f6fbf8';
 
 export default function RegisterScreen({ navigation }) {
+  const { lang } = useTheme();
+  const L = LABELS[lang];
+
   const [email, setEmail]                     = useState('');
   const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -147,7 +148,7 @@ export default function RegisterScreen({ navigation }) {
         <Text style={s.successTitle}>{L.registerSuccess}</Text>
         <Text style={s.successMsg}>{L.registerSuccessMsg}</Text>
         <TouchableOpacity style={s.button} onPress={() => navigation.navigate('Login')} activeOpacity={0.85}>
-          <Text style={s.buttonText}>Ir al inicio de sesión</Text>
+          <Text style={s.buttonText}>{L.goToLogin}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -216,14 +217,14 @@ export default function RegisterScreen({ navigation }) {
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
             <Text style={s.linkText}>
-              ¿Ya tenés cuenta?{' '}
+              {L.haveAccount}{' '}
               <Text style={s.link}>{L.login}</Text>
             </Text>
           </TouchableOpacity>
 
           <View style={s.separator}>
             <View style={s.separatorLine} />
-            <Text style={s.separatorText}>o continuá con</Text>
+            <Text style={s.separatorText}>{L.orWith}</Text>
             <View style={s.separatorLine} />
           </View>
 
@@ -234,13 +235,13 @@ export default function RegisterScreen({ navigation }) {
             activeOpacity={0.85}
           >
             <GoogleIcon />
-            <Text style={s.googleButtonText}>Continuar con Google</Text>
+            <Text style={s.googleButtonText}>{L.googleLogin}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)} style={{ marginTop: 16 }}>
             <Text style={s.privacyText}>
-              Al registrarte aceptás nuestra{' '}
-              <Text style={s.link}>Política de Privacidad</Text>
+              {L.privacyAcceptText}{' '}
+              <Text style={s.link}>{L.privacyPolicyLink}</Text>
             </Text>
           </TouchableOpacity>
         </View>

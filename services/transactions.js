@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withTimeout } from './withTimeout';
+import { invalidateUserTxCache } from './txCache';
 
 export async function getTransactions(userId, year, month, householdId = null) {
   const mm = String(month).padStart(2, '0');
@@ -41,10 +42,11 @@ export async function addTransaction({ userId, amount, description, type, catego
   );
 
   if (error) throw error;
+  invalidateUserTxCache(userId);
   return data;
 }
 
-export async function deleteTransaction(id) {
+export async function deleteTransaction(id, userId = null) {
   const { error } = await withTimeout(
     supabase
       .from('transactions')
@@ -53,9 +55,10 @@ export async function deleteTransaction(id) {
   );
 
   if (error) throw error;
+  if (userId) invalidateUserTxCache(userId);
 }
 
-export async function updateTransaction(id, { amount, description, type, category, date, household_id }) {
+export async function updateTransaction(id, { amount, description, type, category, date, household_id, userId = null }) {
   const patch = { amount, description, type, category };
   if (date) patch.date = date;
   if (household_id !== undefined) patch.household_id = household_id;
@@ -69,6 +72,7 @@ export async function updateTransaction(id, { amount, description, type, categor
   );
 
   if (error) throw error;
+  if (userId) invalidateUserTxCache(userId);
   return data;
 }
 

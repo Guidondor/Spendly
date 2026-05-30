@@ -8,7 +8,7 @@ export const LABELS = {
     name:          'Nombre',
     enter:         'Ingresar',
     create:        'Crear cuenta',
-    orWith:        '— o continuá con —',
+    orWith:        'o continuá con',
     googleLogin:   'Continuar con Google',
 
     ob1Title: 'Controlá tus gastos',
@@ -248,10 +248,17 @@ export const LABELS = {
     privacyPolicyLink:     'Política de Privacidad',
     signOutOk:             'Salir',
 
+    // Login / Register screens
+    dontHaveAccount:       '¿No tenés cuenta?',
+    haveAccount:           '¿Ya tenés cuenta?',
+    goToLogin:             'Ir al inicio de sesión',
+    privacyAcceptText:     'Al registrarte aceptás nuestra',
+
     // AddTransactionModal — placeholders y warnings
     descPlaceholder:       'ej: McDonald\'s, sueldo, SUBE...',
     recurringWarningTpl:   'Se repetirá automáticamente el día {day} de cada mes',
     saveRecurringTpl:      'Guardar como recurrente (día {day})',
+    dayPickerHint:         'Días 1-28 (compatible con febrero)',
 
     // GoalsScreen — modal "Nueva meta"
     goalNamePlaceholder:   'ej: Viaje a Europa',
@@ -268,6 +275,7 @@ export const LABELS = {
     recurringHeaderSub:    'Se crean automáticamente al abrir la app cada mes.',
     recurringEmptyText:    'Sin recurrentes aún.\nActivá el toggle al guardar un movimiento.',
     recurringDayLabelTpl:  'Día {day}',
+    recurringLoadFailed:   'No se pudieron cargar los gastos recurrentes.',
   },
 
   en: {
@@ -279,7 +287,7 @@ export const LABELS = {
     name:          'Name',
     enter:         'Log in',
     create:        'Create account',
-    orWith:        '— or continue with —',
+    orWith:        'or continue with',
     googleLogin:   'Continue with Google',
 
     ob1Title: 'Track your spending',
@@ -519,10 +527,17 @@ export const LABELS = {
     privacyPolicyLink:     'Privacy Policy',
     signOutOk:             'Sign out',
 
+    // Login / Register screens
+    dontHaveAccount:       "Don't have an account?",
+    haveAccount:           'Already have an account?',
+    goToLogin:             'Go to sign in',
+    privacyAcceptText:     'By signing up you accept our',
+
     // AddTransactionModal — placeholders & warnings
     descPlaceholder:       'e.g. McDonald\'s, salary, metro card...',
     recurringWarningTpl:   'It will repeat automatically on day {day} of every month',
     saveRecurringTpl:      'Save as recurring (day {day})',
+    dayPickerHint:         'Days 1-28 (works for every month)',
 
     // GoalsScreen — "New goal" modal
     goalNamePlaceholder:   'e.g. Trip to Europe',
@@ -539,6 +554,7 @@ export const LABELS = {
     recurringHeaderSub:    'Created automatically when you open the app each month.',
     recurringEmptyText:    'No recurring entries yet.\nTurn on the toggle when saving a transaction.',
     recurringDayLabelTpl:  'Day {day}',
+    recurringLoadFailed:   'Could not load recurring expenses.',
   },
 };
 
