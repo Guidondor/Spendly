@@ -18,7 +18,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f6fbf8"
+      "backgroundColor": "#16a34a"
     },
     "ios": {
       "supportsTablet": true,
@@ -28,7 +28,7 @@
       "package": "com.spendly.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#dcfce7",
+        "backgroundColor": "#16a34a",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
