@@ -720,3 +720,20 @@ GRANT  EXECUTE ON FUNCTION public.remove_household_member(UUID) TO authenticated
 
 REVOKE EXECUTE ON FUNCTION public.delete_user_account() FROM public, anon;
 GRANT  EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
+
+
+-- ============================================================
+-- 8. Column-level UPDATE grants (hardening estructural)
+-- ============================================================
+--
+-- La policy `hm_update_self` solo valida `user_id = auth.uid()` en el WITH CHECK
+-- — eso gatea la FILA, no las COLUMNAS. Sin restringir por columna, un miembro
+-- podia UPDATE-ear su propia fila cambiando:
+--   - `joined_at`  -> backdatearse y robar la sucesion automatica de ownership
+--                     (leave_household/delete_user_account transfieren al mas antiguo)
+--   - `household_id` -> intentar moverse de grupo
+-- Todas las mutaciones legitimas de membresia van por RPCs SECURITY DEFINER
+-- (que corren como owner y NO estan sujetas a estos grants). El cliente solo
+-- necesita poder editar su propio display_name/color.
+REVOKE UPDATE ON public.household_members FROM authenticated, anon;
+GRANT  UPDATE (display_name, color) ON public.household_members TO authenticated;
