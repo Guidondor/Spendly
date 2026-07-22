@@ -18,6 +18,7 @@ import {
   leaveHousehold,
   removeHouseholdMember,
   deleteHousehold,
+  getHouseholdMembers,
   computeSettlement,
   MEMBER_COLORS,
 } from '../services/households';
@@ -28,6 +29,7 @@ function buildErrorMap(L) {
   return {
     unauthorized:            L.errorUnauthorized,
     already_in_household:    L.errorAlreadyInGroup,
+    already_in_this_group:   L.errorAlreadyInThisGroup,
     invalid_or_expired_code: L.errorInvalidCode,
     no_household:            L.errorNoGroup,
     not_owner:               L.errorNotOwner,
@@ -45,11 +47,38 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   const { theme, lang } = useTheme();
   const L = LABELS[lang];
   const { alert, confirm } = useAlert();
-  const { household, members, isOwner, reload } = useHousehold();
+  const { groups, activeGroupId, setActiveGroup, reload } = useHousehold();
 
   // 'menu' | 'create' | 'join'
   const [view, setView] = useState('menu');
   const [submitting, setSubmitting] = useState(false);
+
+  // Multi-grupo: grupo actualmente en gestión dentro del modal (por defecto el
+  // activo). `members` son los del grupo seleccionado.
+  const [selectedId, setSelectedId] = useState(null);
+  const [members, setMembers] = useState([]);
+  const selectedGroup = groups.find(g => g.id === selectedId) || null;
+  const isOwner = !!(selectedGroup && currentUserId && selectedGroup.owner_id === currentUserId);
+
+  // Al abrir (o si cambian los grupos), seleccionar el activo por defecto.
+  useEffect(() => {
+    if (!visible) return;
+    setSelectedId(prev => {
+      if (prev && groups.some(g => g.id === prev)) return prev;
+      if (activeGroupId && groups.some(g => g.id === activeGroupId)) return activeGroupId;
+      return groups[0]?.id ?? null;
+    });
+  }, [visible, groups, activeGroupId]);
+
+  // Miembros del grupo seleccionado.
+  useEffect(() => {
+    if (!visible || !selectedId) { setMembers([]); return; }
+    let cancelled = false;
+    getHouseholdMembers(selectedId)
+      .then(m => { if (!cancelled) setMembers(m); })
+      .catch(e => { if (__DEV__) console.warn('[HouseholdModal] members:', e?.message || e); });
+    return () => { cancelled = true; };
+  }, [visible, selectedId]);
 
   // Create form
   const [hhName, setHhName] = useState('Casa');
@@ -67,7 +96,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   const [showSettleDetail, setShowSettleDetail] = useState(false);
 
   useEffect(() => {
-    if (!visible || !household?.id || !currentUserId) {
+    if (!visible || !selectedId || !currentUserId) {
       setMonthTxs([]);
       setSettleLoadError(false);
       return;
@@ -75,7 +104,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
     let cancelled = false;
     const now = new Date();
     setSettleLoadError(false);
-    getTransactions(currentUserId, now.getFullYear(), now.getMonth() + 1, household.id)
+    getTransactions(currentUserId, now.getFullYear(), now.getMonth() + 1, selectedId)
       .then(txs => { if (!cancelled) setMonthTxs(txs); })
       .catch(e => {
         if (__DEV__) console.warn('[HouseholdModal] load txs:', e?.message || e);
@@ -83,11 +112,11 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
         if (!cancelled) setSettleLoadError(true);
       });
     return () => { cancelled = true; };
-  }, [visible, household?.id, currentUserId]);
+  }, [visible, selectedId, currentUserId]);
 
   const settlement = useMemo(
-    () => household?.id ? computeSettlement(monthTxs, members, household.id) : null,
-    [monthTxs, members, household?.id]
+    () => selectedId ? computeSettlement(monthTxs, members, selectedId) : null,
+    [monthTxs, members, selectedId]
   );
 
   const s = useMemo(() => createStyles(theme), [theme]);
@@ -103,9 +132,10 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
     if (!displayName.trim()) { alert('Error', L.yourNameRequired); return; }
     setSubmitting(true);
     try {
-      await createHousehold({ name: hhName.trim(), displayName: displayName.trim(), color });
+      const res = await createHousehold({ name: hhName.trim(), displayName: displayName.trim(), color });
       await reload();
-      setView('menu');
+      if (res?.household_id) { setSelectedId(res.household_id); await setActiveGroup(res.household_id); }
+      setCode(''); setView('menu');
     } catch (e) {
       alert('Error', humanizeError(e.message, L));
     } finally {
@@ -119,9 +149,10 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
     if (!joinDisplay.trim()) { alert('Error', L.yourNameRequired); return; }
     setSubmitting(true);
     try {
-      await joinHousehold({ code: c, displayName: joinDisplay.trim(), color: joinColor });
+      const res = await joinHousehold({ code: c, displayName: joinDisplay.trim(), color: joinColor });
       await reload();
-      setView('menu');
+      if (res?.household_id) { setSelectedId(res.household_id); await setActiveGroup(res.household_id); }
+      setCode(''); setView('menu');
     } catch (e) {
       alert('Error', humanizeError(e.message, L));
     } finally {
@@ -132,7 +163,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   async function handleRotate() {
     setSubmitting(true);
     try {
-      await rotateInviteCode();
+      await rotateInviteCode(selectedId);
       await reload();
     } catch (e) {
       alert('Error', humanizeError(e.message, L));
@@ -142,10 +173,10 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   }
 
   async function handleShareCode() {
-    if (!household?.invite_code) return;
+    if (!selectedGroup?.invite_code) return;
     try {
       const message = L.shareCodeMessage
-        .replace('{code}', household.invite_code)
+        .replace('{code}', selectedGroup.invite_code)
         .replace('{url}', PLAY_STORE_URL);
       await Share.share({ message });
     } catch {}
@@ -178,7 +209,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
           onPress: async () => {
             setSubmitting(true);
             try {
-              await removeHouseholdMember(member.user_id);
+              await removeHouseholdMember(selectedId, member.user_id);
+              await getHouseholdMembers(selectedId).then(setMembers).catch(() => {});
               await reload();
             } catch (e) {
               alert('Error', humanizeError(e.message, L));
@@ -202,11 +234,12 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
           onPress: async () => {
             setSubmitting(true);
             try {
-              await deleteHousehold();
+              await deleteHousehold(selectedId);
+              setSelectedId(null);
               await reload();
-              close();
             } catch (e) {
               alert('Error', humanizeError(e.message, L));
+            } finally {
               setSubmitting(false);
             }
           },
@@ -226,7 +259,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
           onPress: async () => {
             setSubmitting(true);
             try {
-              await leaveHousehold();
+              await leaveHousehold(selectedId);
+              setSelectedId(null);
               await reload();
             } catch (e) {
               alert('Error', humanizeError(e.message, L));
@@ -240,8 +274,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   }
 
   function expiryLabel() {
-    if (!household?.invite_expires_at) return '';
-    const ms = new Date(household.invite_expires_at).getTime() - Date.now();
+    if (!selectedGroup?.invite_expires_at) return '';
+    const ms = new Date(selectedGroup.invite_expires_at).getTime() - Date.now();
     if (ms <= 0) return L.expiredLabel;
     const hrs = Math.floor(ms / 3600000);
     const mins = Math.floor((ms % 3600000) / 60000);
@@ -250,7 +284,8 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   }
 
   function renderActiveHousehold() {
-    const expired = household.invite_expires_at && new Date(household.invite_expires_at) < new Date();
+    if (!selectedGroup) return null;
+    const expired = selectedGroup.invite_expires_at && new Date(selectedGroup.invite_expires_at) < new Date();
     const canRotate = isOwner && !expired;
     const membersHeader = L.membersWithCount.replace('{n}', members.length);
 
@@ -259,7 +294,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
         {/* Card unificada: GRUPO + nombre + CÓDIGO + código + expiry + botón Compartir */}
         <View style={s.unifiedCard}>
           <Text style={s.unifiedLabel}>{L.groupSection}</Text>
-          <Text style={[s.unifiedTitle, { color: theme.text }]}>{household.name}</Text>
+          <Text style={[s.unifiedTitle, { color: theme.text }]}>{selectedGroup.name}</Text>
 
           <Text style={s.codeLabel}>{L.inviteCode.toUpperCase()}</Text>
           <TouchableOpacity
@@ -271,7 +306,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
             style={s.codeWrap}
           >
             <Text style={[s.code, expired && { color: theme.expense }]}>
-              {household.invite_code}
+              {selectedGroup.invite_code}
             </Text>
           </TouchableOpacity>
           <Text style={s.codeExpiry}>{expiryLabel()}</Text>
@@ -389,7 +424,7 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
                 <View style={{ flex: 1 }}>
                   <Text style={s.memberName}>{m.display_name}</Text>
                   <Text style={[s.ownerTag, { color: theme.subtext }]}>
-                    {m.user_id === household.owner_id ? L.groupOwner : L.groupMember}
+                    {m.user_id === selectedGroup.owner_id ? L.groupOwner : L.groupMember}
                   </Text>
                 </View>
                 {canRemove && (
@@ -429,11 +464,52 @@ export default function HouseholdModal({ visible, onClose, defaultName = '', cur
   }
 
   function renderMenu() {
-    if (household) return renderActiveHousehold();
-
+    const hasGroups = groups.length > 0;
     return (
       <>
-        <Text style={s.helpText}>{L.groupHelpText}</Text>
+        {hasGroups && (
+          <>
+            {/* Tabs de grupos (si hay más de uno) para elegir cuál gestionar */}
+            {groups.length > 1 && (
+              <View style={s.groupTabs}>
+                {groups.map(g => {
+                  const sel = g.id === selectedId;
+                  return (
+                    <TouchableOpacity
+                      key={g.id}
+                      onPress={() => setSelectedId(g.id)}
+                      style={[s.groupTab, sel && { backgroundColor: theme.accent }]}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[s.groupTabDot, { backgroundColor: g.self?.color || theme.accent }]} />
+                      <Text style={[s.groupTabText, { color: sel ? '#fff' : theme.subtext }]} numberOfLines={1}>
+                        {g.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Activar el grupo seleccionado si no es el activo */}
+            {selectedId && selectedId !== activeGroupId && (
+              <TouchableOpacity
+                style={[s.activateBtn, { borderColor: theme.accent }]}
+                onPress={() => setActiveGroup(selectedId)}
+                disabled={submitting}
+              >
+                <Text style={[s.activateBtnText, { color: theme.accent }]}>⚡  {L.useThisGroup}</Text>
+              </TouchableOpacity>
+            )}
+
+            {renderActiveHousehold()}
+
+            <Text style={s.orDivider}>{L.orLabel}</Text>
+          </>
+        )}
+
+        {!hasGroups && <Text style={s.helpText}>{L.groupHelpText}</Text>}
+
         <TouchableOpacity
           style={[s.bigBtn, { backgroundColor: theme.accent }]}
           onPress={() => setView('create')}
@@ -721,6 +797,26 @@ function createStyles(t) {
     balanceDelta: { fontSize: 14, fontWeight: '800', minWidth: 90, textAlign: 'right' },
 
     helpText: { fontSize: 14, color: t.subtext, marginBottom: 20, lineHeight: 20 },
+
+    groupTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    groupTab: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20,
+      backgroundColor: t.card, borderWidth: t.dark ? 1 : 0, borderColor: t.cardBorder,
+      maxWidth: '100%',
+    },
+    groupTabDot: { width: 10, height: 10, borderRadius: 5 },
+    groupTabText: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+    activateBtn: {
+      borderRadius: 12, paddingVertical: 11, alignItems: 'center',
+      borderWidth: 1.5, marginBottom: 16,
+    },
+    activateBtnText: { fontSize: 14, fontWeight: '800' },
+    orDivider: {
+      fontSize: 12, fontWeight: '700', color: t.subtext, textAlign: 'center',
+      marginTop: 20, marginBottom: 16, letterSpacing: 1,
+    },
+
     bigBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 14,
       paddingVertical: 18, paddingHorizontal: 18,

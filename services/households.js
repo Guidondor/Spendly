@@ -4,30 +4,32 @@ import { clearAIInsightCache } from './aiInsightCache';
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-export async function getHousehold(userId) {
-  if (!userId) return null;
+// Multi-grupo: devuelve TODOS los grupos del user (array), ordenados por antigüedad
+// de membresía. Reemplaza al viejo getHousehold (que usaba .maybeSingle() y
+// explotaba con 2+ membresías).
+export async function getHouseholds(userId) {
+  if (!userId) return [];
   const { data, error } = await withTimeout(
     supabase
       .from('household_members')
       .select('household_id, display_name, color, joined_at, households!inner(id, name, invite_code, invite_expires_at, owner_id, created_at)')
       .eq('user_id', userId)
-      .maybeSingle()
+      .order('joined_at', { ascending: true })
   );
   if (error) throw error;
-  if (!data) return null;
-  return {
-    id: data.households.id,
-    name: data.households.name,
-    invite_code: data.households.invite_code,
-    invite_expires_at: data.households.invite_expires_at,
-    owner_id: data.households.owner_id,
-    created_at: data.households.created_at,
+  return (data || []).map(row => ({
+    id: row.households.id,
+    name: row.households.name,
+    invite_code: row.households.invite_code,
+    invite_expires_at: row.households.invite_expires_at,
+    owner_id: row.households.owner_id,
+    created_at: row.households.created_at,
     self: {
-      display_name: data.display_name,
-      color: data.color,
-      joined_at: data.joined_at,
+      display_name: row.display_name,
+      color: row.color,
+      joined_at: row.joined_at,
     },
-  };
+  }));
 }
 
 export async function getHouseholdMembers(householdId) {
@@ -75,15 +77,21 @@ export async function joinHousehold({ code, displayName, color }) {
   return data;
 }
 
-export async function rotateInviteCode() {
-  const { data, error } = await withTimeout(supabase.rpc('rotate_invite_code'), 15000);
+export async function rotateInviteCode(householdId) {
+  const { data, error } = await withTimeout(
+    supabase.rpc('rotate_invite_code', { p_household_id: householdId }),
+    15000
+  );
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   return data;
 }
 
-export async function leaveHousehold() {
-  const { data, error } = await withTimeout(supabase.rpc('leave_household'), 15000);
+export async function leaveHousehold(householdId) {
+  const { data, error } = await withTimeout(
+    supabase.rpc('leave_household', { p_household_id: householdId }),
+    15000
+  );
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   await clearAIInsightCache();
@@ -91,9 +99,9 @@ export async function leaveHousehold() {
 }
 
 // Solo dueño. Elimina a otro miembro del grupo (no permite auto-removerse).
-export async function removeHouseholdMember(targetUserId) {
+export async function removeHouseholdMember(householdId, targetUserId) {
   const { data, error } = await withTimeout(
-    supabase.rpc('remove_household_member', { p_target_user_id: targetUserId }),
+    supabase.rpc('remove_household_member', { p_household_id: householdId, p_target_user_id: targetUserId }),
     15000
   );
   if (error) throw error;
@@ -104,8 +112,11 @@ export async function removeHouseholdMember(targetUserId) {
 
 // Solo dueño. Borra el grupo entero. Los registros con household_id quedan
 // privados gracias a ON DELETE SET NULL.
-export async function deleteHousehold() {
-  const { data, error } = await withTimeout(supabase.rpc('delete_household'), 15000);
+export async function deleteHousehold(householdId) {
+  const { data, error } = await withTimeout(
+    supabase.rpc('delete_household', { p_household_id: householdId }),
+    15000
+  );
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   await clearAIInsightCache();

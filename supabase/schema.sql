@@ -118,9 +118,10 @@ CREATE TABLE IF NOT EXISTS public.goals (
 CREATE UNIQUE INDEX IF NOT EXISTS households_invite_code_uniq
   ON public.households (invite_code);
 
--- household_members: un usuario puede pertenecer a UN solo hogar (V1)
-CREATE UNIQUE INDEX IF NOT EXISTS household_members_user_unique
-  ON public.household_members (user_id);
+-- household_members: multi-grupo (V1.1) — un usuario puede pertenecer a N grupos.
+-- La PK (household_id, user_id) previene doble-join al mismo grupo. El índice
+-- único household_members_user_unique fue removido en la migración
+-- 2026-07-02-multi-group.sql.
 
 -- transactions
 CREATE INDEX IF NOT EXISTS idx_transactions_user_date
@@ -360,9 +361,7 @@ BEGIN
     RETURN jsonb_build_object('error', 'unauthorized');
   END IF;
 
-  IF EXISTS (SELECT 1 FROM public.household_members WHERE user_id = v_uid) THEN
-    RETURN jsonb_build_object('error', 'already_in_household');
-  END IF;
+  -- Multi-grupo: sin guard already_in_household (un user puede tener N grupos).
 
   -- Generate unique 6-char alphanumeric code
   LOOP
@@ -412,10 +411,6 @@ BEGIN
     RETURN jsonb_build_object('error', 'unauthorized');
   END IF;
 
-  IF EXISTS (SELECT 1 FROM public.household_members WHERE user_id = v_uid) THEN
-    RETURN jsonb_build_object('error', 'already_in_household');
-  END IF;
-
   SELECT * INTO v_household
   FROM public.households
   WHERE invite_code = upper(trim(p_code))
@@ -423,6 +418,11 @@ BEGIN
 
   IF v_household IS NULL THEN
     RETURN jsonb_build_object('error', 'invalid_or_expired_code');
+  END IF;
+
+  -- Multi-grupo: sin guard already_in_household; la PK evita doble-join al mismo grupo.
+  IF EXISTS (SELECT 1 FROM public.household_members WHERE household_id = v_household.id AND user_id = v_uid) THEN
+    RETURN jsonb_build_object('error', 'already_in_this_group');
   END IF;
 
   INSERT INTO public.household_members (household_id, user_id, display_name, color)
@@ -437,7 +437,8 @@ $$;
 
 
 -- 6.3 rotate_invite_code — solo dueño. Invalida invitaciones previas.
-CREATE OR REPLACE FUNCTION public.rotate_invite_code()
+DROP FUNCTION IF EXISTS public.rotate_invite_code();
+CREATE OR REPLACE FUNCTION public.rotate_invite_code(p_household_id UUID)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -445,7 +446,7 @@ SET search_path TO 'public', 'extensions'
 AS $$
 DECLARE
   v_uid        UUID := auth.uid();
-  v_household  RECORD;
+  v_owner      UUID;
   v_code       TEXT;
   v_expires_at TIMESTAMPTZ := NOW() + INTERVAL '24 hours';
 BEGIN
@@ -453,16 +454,16 @@ BEGIN
     RETURN jsonb_build_object('error', 'unauthorized');
   END IF;
 
-  SELECT h.* INTO v_household
+  SELECT h.owner_id INTO v_owner
   FROM public.households h
   JOIN public.household_members hm ON hm.household_id = h.id
-  WHERE hm.user_id = v_uid;
+  WHERE h.id = p_household_id AND hm.user_id = v_uid;
 
-  IF v_household IS NULL THEN
+  IF v_owner IS NULL THEN
     RETURN jsonb_build_object('error', 'no_household');
   END IF;
 
-  IF v_household.owner_id <> v_uid THEN
+  IF v_owner <> v_uid THEN
     RETURN jsonb_build_object('error', 'not_owner');
   END IF;
 
@@ -476,13 +477,13 @@ BEGIN
     );
     EXIT WHEN NOT EXISTS (
       SELECT 1 FROM public.households
-      WHERE invite_code = v_code AND id <> v_household.id
+      WHERE invite_code = v_code AND id <> p_household_id
     );
   END LOOP;
 
   UPDATE public.households
   SET invite_code = v_code, invite_expires_at = v_expires_at
-  WHERE id = v_household.id;
+  WHERE id = p_household_id;
 
   RETURN jsonb_build_object('invite_code', v_code, 'expires_at', v_expires_at);
 END;
@@ -492,7 +493,8 @@ $$;
 -- 6.4 leave_household — caller se va. Si era único miembro borra el grupo.
 -- Si era dueño con otros miembros, transfiere ownership al miembro con
 -- joined_at más viejo.
-CREATE OR REPLACE FUNCTION public.leave_household()
+DROP FUNCTION IF EXISTS public.leave_household();
+CREATE OR REPLACE FUNCTION public.leave_household(p_household_id UUID)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -500,8 +502,8 @@ SET search_path TO 'public'
 AS $$
 DECLARE
   v_uid           UUID := auth.uid();
-  v_household_id  UUID;
   v_owner_id      UUID;
+  v_is_member     BOOLEAN;
   v_member_count  INT;
   v_next_owner    UUID;
 BEGIN
@@ -509,24 +511,23 @@ BEGIN
     RETURN jsonb_build_object('error', 'unauthorized');
   END IF;
 
-  SELECT hm.household_id, h.owner_id
-  INTO v_household_id, v_owner_id
-  FROM public.household_members hm
-  JOIN public.households h ON h.id = hm.household_id
-  WHERE hm.user_id = v_uid;
+  SELECT h.owner_id,
+         EXISTS(SELECT 1 FROM public.household_members hm WHERE hm.household_id = p_household_id AND hm.user_id = v_uid)
+  INTO v_owner_id, v_is_member
+  FROM public.households h WHERE h.id = p_household_id;
 
-  IF v_household_id IS NULL THEN
+  IF NOT COALESCE(v_is_member, false) THEN
     RETURN jsonb_build_object('error', 'no_household');
   END IF;
 
   SELECT COUNT(*) INTO v_member_count
   FROM public.household_members
-  WHERE household_id = v_household_id;
+  WHERE household_id = p_household_id;
 
   -- Case: sole member → delete entire household (cascade members,
   -- transactions/budgets/goals/recurring become private via ON DELETE SET NULL).
   IF v_member_count <= 1 THEN
-    DELETE FROM public.households WHERE id = v_household_id;
+    DELETE FROM public.households WHERE id = p_household_id;
     RETURN jsonb_build_object('ok', true, 'household_deleted', true);
   END IF;
 
@@ -534,17 +535,17 @@ BEGIN
   IF v_owner_id = v_uid THEN
     SELECT user_id INTO v_next_owner
     FROM public.household_members
-    WHERE household_id = v_household_id AND user_id <> v_uid
+    WHERE household_id = p_household_id AND user_id <> v_uid
     ORDER BY joined_at ASC
     LIMIT 1;
 
     UPDATE public.households
     SET owner_id = v_next_owner
-    WHERE id = v_household_id;
+    WHERE id = p_household_id;
   END IF;
 
   DELETE FROM public.household_members
-  WHERE household_id = v_household_id AND user_id = v_uid;
+  WHERE household_id = p_household_id AND user_id = v_uid;
 
   RETURN jsonb_build_object('ok', true, 'household_deleted', false);
 END;
@@ -553,7 +554,8 @@ $$;
 
 -- 6.5 delete_household — solo dueño. Borra el grupo entero. Las txs/budgets/
 -- goals/recurring quedan privadas del autor (via ON DELETE SET NULL).
-CREATE OR REPLACE FUNCTION public.delete_household()
+DROP FUNCTION IF EXISTS public.delete_household();
+CREATE OR REPLACE FUNCTION public.delete_household(p_household_id UUID)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -561,27 +563,26 @@ SET search_path TO 'public'
 AS $$
 DECLARE
   caller UUID := auth.uid();
-  hh_id UUID;
-  is_caller_owner BOOLEAN;
+  v_owner UUID;
+  v_is_member BOOLEAN;
 BEGIN
   IF caller IS NULL THEN
     RETURN jsonb_build_object('error', 'unauthorized');
   END IF;
 
-  SELECT hm.household_id, (h.owner_id = caller)
-    INTO hh_id, is_caller_owner
-  FROM public.household_members hm
-  JOIN public.households h ON h.id = hm.household_id
-  WHERE hm.user_id = caller;
+  SELECT h.owner_id,
+         EXISTS(SELECT 1 FROM public.household_members hm WHERE hm.household_id = p_household_id AND hm.user_id = caller)
+    INTO v_owner, v_is_member
+  FROM public.households h WHERE h.id = p_household_id;
 
-  IF hh_id IS NULL THEN
+  IF NOT COALESCE(v_is_member, false) THEN
     RETURN jsonb_build_object('error', 'no_household');
   END IF;
-  IF NOT is_caller_owner THEN
+  IF v_owner <> caller THEN
     RETURN jsonb_build_object('error', 'not_owner');
   END IF;
 
-  DELETE FROM public.households WHERE id = hh_id;
+  DELETE FROM public.households WHERE id = p_household_id;
 
   RETURN jsonb_build_object('ok', true);
 END;
@@ -589,7 +590,8 @@ $$;
 
 
 -- 6.6 remove_household_member — solo dueño. No permite self-remove (usar leave).
-CREATE OR REPLACE FUNCTION public.remove_household_member(p_target_user_id UUID)
+DROP FUNCTION IF EXISTS public.remove_household_member(UUID);
+CREATE OR REPLACE FUNCTION public.remove_household_member(p_household_id UUID, p_target_user_id UUID)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -597,8 +599,7 @@ SET search_path TO 'public'
 AS $$
 DECLARE
   caller UUID := auth.uid();
-  hh_id UUID;
-  is_caller_owner BOOLEAN;
+  v_owner UUID;
 BEGIN
   IF caller IS NULL THEN
     RETURN jsonb_build_object('error', 'unauthorized');
@@ -607,28 +608,27 @@ BEGIN
     RETURN jsonb_build_object('error', 'cant_remove_self');
   END IF;
 
-  SELECT hm.household_id, (h.owner_id = caller)
-    INTO hh_id, is_caller_owner
-  FROM public.household_members hm
-  JOIN public.households h ON h.id = hm.household_id
-  WHERE hm.user_id = caller;
+  SELECT h.owner_id INTO v_owner
+  FROM public.households h
+  JOIN public.household_members hm ON hm.household_id = h.id
+  WHERE h.id = p_household_id AND hm.user_id = caller;
 
-  IF hh_id IS NULL THEN
+  IF v_owner IS NULL THEN
     RETURN jsonb_build_object('error', 'no_household');
   END IF;
-  IF NOT is_caller_owner THEN
+  IF v_owner <> caller THEN
     RETURN jsonb_build_object('error', 'not_owner');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.household_members
-    WHERE household_id = hh_id AND user_id = p_target_user_id
+    WHERE household_id = p_household_id AND user_id = p_target_user_id
   ) THEN
     RETURN jsonb_build_object('error', 'not_a_member');
   END IF;
 
   DELETE FROM public.household_members
-  WHERE household_id = hh_id AND user_id = p_target_user_id;
+  WHERE household_id = p_household_id AND user_id = p_target_user_id;
 
   RETURN jsonb_build_object('ok', true);
 END;
@@ -645,8 +645,7 @@ SET search_path TO 'public'
 AS $$
 DECLARE
   v_uid          UUID := auth.uid();
-  v_household_id UUID;
-  v_owner_id     UUID;
+  r              RECORD;
   v_member_count INT;
   v_next_owner   UUID;
 BEGIN
@@ -654,30 +653,30 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- Cleanup household membership con misma lógica que leave_household
-  SELECT hm.household_id, h.owner_id INTO v_household_id, v_owner_id
-  FROM public.household_members hm
-  JOIN public.households h ON h.id = hm.household_id
-  WHERE hm.user_id = v_uid;
-
-  IF v_household_id IS NOT NULL THEN
+  -- Multi-grupo: limpiar TODAS las membresías con la misma lógica que leave_household.
+  FOR r IN
+    SELECT hm.household_id, h.owner_id
+    FROM public.household_members hm
+    JOIN public.households h ON h.id = hm.household_id
+    WHERE hm.user_id = v_uid
+  LOOP
     SELECT COUNT(*) INTO v_member_count
-    FROM public.household_members WHERE household_id = v_household_id;
+    FROM public.household_members WHERE household_id = r.household_id;
 
     IF v_member_count <= 1 THEN
-      DELETE FROM public.households WHERE id = v_household_id;
+      DELETE FROM public.households WHERE id = r.household_id;
     ELSE
-      IF v_owner_id = v_uid THEN
+      IF r.owner_id = v_uid THEN
         SELECT user_id INTO v_next_owner
         FROM public.household_members
-        WHERE household_id = v_household_id AND user_id <> v_uid
+        WHERE household_id = r.household_id AND user_id <> v_uid
         ORDER BY joined_at ASC LIMIT 1;
-        UPDATE public.households SET owner_id = v_next_owner WHERE id = v_household_id;
+        UPDATE public.households SET owner_id = v_next_owner WHERE id = r.household_id;
       END IF;
       DELETE FROM public.household_members
-      WHERE household_id = v_household_id AND user_id = v_uid;
+      WHERE household_id = r.household_id AND user_id = v_uid;
     END IF;
-  END IF;
+  END LOOP;
 
   -- Borrar TODA la data del user (privada + compartida). El cascade del
   -- auth.users también lo haría, pero hacerlo explícito hace el orden
@@ -706,17 +705,17 @@ GRANT  EXECUTE ON FUNCTION public.create_household(TEXT, TEXT, TEXT) TO authenti
 REVOKE EXECUTE ON FUNCTION public.join_household(TEXT, TEXT, TEXT) FROM public, anon;
 GRANT  EXECUTE ON FUNCTION public.join_household(TEXT, TEXT, TEXT) TO authenticated;
 
-REVOKE EXECUTE ON FUNCTION public.rotate_invite_code() FROM public, anon;
-GRANT  EXECUTE ON FUNCTION public.rotate_invite_code() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.rotate_invite_code(UUID) FROM public, anon;
+GRANT  EXECUTE ON FUNCTION public.rotate_invite_code(UUID) TO authenticated;
 
-REVOKE EXECUTE ON FUNCTION public.leave_household() FROM public, anon;
-GRANT  EXECUTE ON FUNCTION public.leave_household() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.leave_household(UUID) FROM public, anon;
+GRANT  EXECUTE ON FUNCTION public.leave_household(UUID) TO authenticated;
 
-REVOKE EXECUTE ON FUNCTION public.delete_household() FROM public, anon;
-GRANT  EXECUTE ON FUNCTION public.delete_household() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.delete_household(UUID) FROM public, anon;
+GRANT  EXECUTE ON FUNCTION public.delete_household(UUID) TO authenticated;
 
-REVOKE EXECUTE ON FUNCTION public.remove_household_member(UUID) FROM public, anon;
-GRANT  EXECUTE ON FUNCTION public.remove_household_member(UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.remove_household_member(UUID, UUID) FROM public, anon;
+GRANT  EXECUTE ON FUNCTION public.remove_household_member(UUID, UUID) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.delete_user_account() FROM public, anon;
 GRANT  EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;

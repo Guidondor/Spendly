@@ -59,15 +59,16 @@ export async function deleteRecurring(id) {
   if (error) throw error;
 }
 
-// Corre las recurring del user (privadas) Y las del hogar al que pertenece.
-// Si el caller es miembro de un hogar, también ejecuta las reglas con household_id.
-// Cada tx generada tiene user_id = caller (autor = quien gatilla), y mantiene el
-// household_id si corresponde. El índice único uniq_recurring_per_month previene
-// duplicados cuando otro miembro ya ejecutó.
-export async function applyRecurring(userId, householdId = null) {
-  // Throttle: si ya corrimos en las últimas 24h para este scope, saltar.
-  const scope = householdId ? `hh${householdId}` : 'mine';
-  const lastKey = `spendly_recurring_last_${userId}_${scope}`;
+// Multi-grupo: una sola pasada por usuario que aplica TODAS las reglas visibles
+// — privadas + de TODOS los grupos a los que pertenece (no solo el activo). La RLS
+// de recurring_transactions ya devuelve private + shared de todos sus grupos, así
+// que basta con traer todas las activas sin filtrar por household. Cada tx generada
+// tiene user_id = caller y mantiene el household_id de la regla. El índice único
+// uniq_recurring_per_month previene duplicados si otro miembro ya ejecutó.
+export async function applyRecurring(userId) {
+  // Throttle: una clave por user (no por scope). Si ya corrimos en las últimas
+  // 24h, saltar. El índice único garantiza correctness aunque se saltee.
+  const lastKey = `spendly_recurring_last_${userId}`;
   try {
     const last = await AsyncStorage.getItem(lastKey);
     if (last && Date.now() - Number(last) < APPLY_RECURRING_TTL_MS) {
@@ -80,8 +81,16 @@ export async function applyRecurring(userId, householdId = null) {
   const month = now.getMonth() + 1;
   const today = now.getDate();
 
-  const recurring = await getRecurring(userId, householdId);
-  if (recurring.length === 0) {
+  // Todas las recurring activas visibles (privadas + de todos los grupos vía RLS).
+  const { data: recurring, error: recErr } = await withTimeout(
+    supabase
+      .from('recurring_transactions')
+      .select('*')
+      .eq('active', true)
+      .order('day_of_month', { ascending: true })
+  );
+  if (recErr) throw recErr;
+  if (!recurring || recurring.length === 0) {
     try { await AsyncStorage.setItem(lastKey, String(Date.now())); } catch {}
     return [];
   }

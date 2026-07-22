@@ -21,6 +21,7 @@ import { AI_INSIGHT_CACHE_PREFIX } from '../services/aiInsightCache';
 import { formatMoney } from '../services/format';
 import { useAlert } from '../components/AppAlert';
 import { useHousehold } from '../components/HouseholdProvider';
+import GroupSwitcher from '../components/GroupSwitcher';
 import AuthorBadge from '../components/AuthorBadge';
 
 
@@ -308,7 +309,7 @@ export default function HomeScreen({ session }) {
   const loadTransactions = useCallback(async () => {
     if (!userId) return;
     try {
-      await applyRecurring(userId, householdId);
+      await applyRecurring(userId);
       const data = await getTransactions(userId, viewDate.getFullYear(), viewDate.getMonth() + 1, householdId);
       setTransactions(data);
       hasDataRef.current = true;
@@ -646,6 +647,9 @@ export default function HomeScreen({ session }) {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Switcher de grupo activo (solo si el user pertenece a algún grupo) */}
+      <GroupSwitcher />
 
       {/* Month selector */}
       <View style={s.monthRow}>
